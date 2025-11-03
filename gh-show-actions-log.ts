@@ -8,24 +8,8 @@ import { execSync } from "node:child_process";
 
 const BIN = process.argv[1]
 
-
-// TypeScript type definitions
-interface ExecCommandOptions {
-  silent?: boolean;
-  ignoreError?: boolean;
-  execSyncOptions?: Parameters<typeof execSync>[1];
-}
-
-interface ExecCommandSuccess {
-  ok: true;
-  result: string;
-}
-
-interface ExecCommandFailure {
-  ok: false;
-  code?: number;
-}
-
+type ExecCommandSuccess = { ok: true; result: string; }
+type ExecCommandFailure = { ok: false; code?: number; }
 type ExecCommandResult = ExecCommandSuccess | ExecCommandFailure;
 
 // Constants
@@ -111,7 +95,7 @@ class GhCli {
   }
 }
 
-// Git CLI wrapper class
+/** Git CLI wrapper class */
 class GitCli {
   static getCurrentBranch() {
     return execCommand("git branch --show-current", { silent: true });
@@ -123,7 +107,12 @@ class GitCli {
 }
 
 /** Executes a shell command and returns a structured result */
-function execCommand(command: string, options: ExecCommandOptions = {}): ExecCommandResult {
+function execCommand(command: string, options: {
+  silent?: boolean;
+  ignoreError?: boolean;
+  execSyncOptions?: Parameters<typeof execSync>[1];
+}
+  = {}): ExecCommandResult {
   try {
     const result = execSync(command, {
       encoding: "utf-8",

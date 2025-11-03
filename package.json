@@ -1,6 +1,9 @@
 {
   "name": "gh-show-actions-log",
   "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^24.10.0"
