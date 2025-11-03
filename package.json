@@ -1,0 +1,11 @@
+{
+  "name": "gh-show-actions-log",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^24.10.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

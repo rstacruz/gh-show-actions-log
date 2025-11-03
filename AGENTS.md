@@ -1,0 +1,1 @@
+- Use bun, don't use pnpm/yarn/node
