@@ -310,8 +310,8 @@ async function main(): Promise<void> {
   // Parse arguments
   const args = process.argv.slice(2);
   let repo = args[0];
-  const workflowName = args[1] || "";
-  let branch = args[2];
+  let branch = args[1];
+  const workflowName = args[2] || "";
 
   // Get repository if not provided
   if (!repo) {
@@ -320,8 +320,8 @@ async function main(): Promise<void> {
       repo = repoResult.result;
     } else {
       Output.error("Could not determine repository. Please provide it as first argument.");
-      Output.log(`Usage: ${BIN} [repo] [workflow-name] [branch]`);
-      Output.log(`Example: ${BIN} owner/repo ci main`);
+      Output.log(`Usage: ${BIN} [repo] [branch] [workflow-name]`);
+      Output.log(`Example: ${BIN} owner/repo main ci`);
       process.exit(1);
     }
   }
@@ -332,9 +332,9 @@ async function main(): Promise<void> {
     if (branchResult.ok) {
       branch = branchResult.result;
     } else {
-      Output.error("Could not determine current branch. Please provide it as third argument.");
-      Output.log(`Usage: ${BIN} [repo] [workflow-name] [branch]`);
-      Output.log(`Example: ${BIN} owner/repo ci main`);
+      Output.error("Could not determine current branch. Please provide it as second argument.");
+      Output.log(`Usage: ${BIN} [repo] [branch] [workflow-name]`);
+      Output.log(`Example: ${BIN} owner/repo main ci`);
       process.exit(1);
     }
   }
