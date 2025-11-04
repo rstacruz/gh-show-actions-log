@@ -25,6 +25,7 @@ const colors = {
   green: '\x1b[0;32m',
   yellow: '\x1b[1;33m',
   blue: '\x1b[0;34m',
+  dim: '\x1b[2m',
   reset: '\x1b[0m',
 }
 
@@ -142,6 +143,22 @@ class ShowLogAction {
     }
 
     return failedRuns
+  }
+
+  static displayRunSummary(runs: any[], repo: string, shortSha: string): void {
+    if (runs.length === 0) {
+      Output.success(`No workflow runs found for ${repo} @ ${shortSha}`)
+      return
+    }
+
+    Output.h2(`Workflow runs for ${repo} @ ${shortSha}:`)
+    for (const run of runs) {
+      const status = Util.formatStatus(run.status, run.conclusion)
+      const duration = Util.formatDuration(run.startedAt, run.completedAt)
+      Output.log(
+        `- ${status}: ${run.workflowName} / ${run.event} (${duration})`,
+      )
+    }
   }
 
   static async processFailedRuns(
@@ -264,9 +281,16 @@ class ShowLogAction {
 
     if (failedRuns.length === 0) {
       if (runningFailures.length === 0) {
-        Output.success(
-          `Success! No failed or running workflow runs for ${repo} @ ${shortSha}.`,
-        )
+        // Fetch all runs for the commit and display summary
+        const allRunsResult = GhCli.getAllRuns(repo, LIMIT, commitSha)
+        if (allRunsResult.ok) {
+          const allRuns = Util.parseJsonLines(allRunsResult.result)
+          ShowLogAction.displayRunSummary(allRuns, repo, shortSha)
+        } else {
+          Output.success(
+            `Success! No failed or running workflow runs for ${repo} @ ${shortSha}.`,
+          )
+        }
       }
       process.exit(0)
     }
@@ -316,6 +340,14 @@ class GhCli {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     return Util.execCommand(
       `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion --jq '${jqFilter}'`,
+      { silent: true },
+    )
+  }
+
+  static getAllRuns(repo: string, limit: number, commitSha: string) {
+    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
+    return Util.execCommand(
+      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,workflowName,event,status,conclusion,startedAt,completedAt --jq '.[]'`,
       { silent: true },
     )
   }
@@ -413,6 +445,41 @@ class Util {
   static validateSha(sha: string): boolean {
     if (!sha) return false
     return /^[a-f0-9]{7,40}$/i.test(sha)
+  }
+
+  static formatStatus(status: string, conclusion: string | null): string {
+    if (status === 'in_progress') {
+      return `${colors.blue}RUNNING${colors.reset}`
+    }
+
+    switch (conclusion) {
+      case 'success':
+        return `${colors.green}SUCCESS${colors.reset}`
+      case 'failure':
+        return `${colors.red}FAILURE${colors.reset}`
+      case 'cancelled':
+        return `${colors.yellow}CANCELLED${colors.reset}`
+      case 'skipped':
+        return `${colors.dim}SKIPPED${colors.reset}`
+      default:
+        return 'UNKNOWN'
+    }
+  }
+
+  static formatDuration(
+    startedAt: string | null,
+    completedAt: string | null,
+  ): string {
+    if (!startedAt || !completedAt) {
+      return 'N/A'
+    }
+
+    const start = new Date(startedAt)
+    const end = new Date(completedAt)
+    const diffMs = end.getTime() - start.getTime()
+    const seconds = Math.round(diffMs / 1000)
+
+    return `${seconds}s`
   }
 
   static execCommand(
