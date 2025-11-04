@@ -262,13 +262,6 @@ class GhCli {
     )
   }
 
-  static getRunStatus(repo: string, runId: number) {
-    return Util.execCommand(
-      `gh run view --repo "${repo}" "${runId}" --json status,conclusion --jq '.'`,
-      { silent: true },
-    )
-  }
-
   static listRuns(
     repo: string,
     limit: number,
@@ -295,27 +288,19 @@ class GhCli {
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
-  static getFailedJobs(repo: string, runId: number) {
-    return Util.execCommand(
+  static getFailedJobsFromRun(repo: string, runId: number): any[] {
+    const outputResult = Util.execCommand(
       `gh run view --repo "${repo}" "${runId}" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | {name: .name, databaseId: .databaseId}'`,
       { silent: true },
     )
-  }
-
-  static getJobLogs(repo: string, jobId: number) {
-    return Util.execCommand(
-      `gh run view --repo "${repo}" --job "${jobId}" --log`,
-      { silent: true },
-    )
-  }
-
-  static getFailedJobsFromRun(repo: string, runId: number): any[] {
-    const outputResult = GhCli.getFailedJobs(repo, runId)
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
   static getJobLogsFromRepo(repo: string, jobId: number): string | null {
-    const logsResult = GhCli.getJobLogs(repo, jobId)
+    const logsResult = Util.execCommand(
+      `gh run view --repo "${repo}" --job "${jobId}" --log`,
+      { silent: true },
+    )
     return logsResult.ok ? logsResult.result : null
   }
 }
