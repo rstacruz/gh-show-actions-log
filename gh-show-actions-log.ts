@@ -308,14 +308,12 @@ class Util {
   }
 
   static formatStatus(status: string, conclusion: string | null): string {
-    if (status === 'queued') {
-      return `${colors.yellow}QUEUED${colors.reset}`
+    switch (status) {
+      case 'queued':
+        return `${colors.yellow}QUEUED${colors.reset}`
+      case 'in_progress':
+        return `${colors.blue}RUNNING${colors.reset}`
     }
-
-    if (status === 'in_progress') {
-      return `${colors.blue}RUNNING${colors.reset}`
-    }
-
     switch (conclusion) {
       case 'success':
         return `${colors.green}SUCCESS${colors.reset}`
@@ -325,9 +323,8 @@ class Util {
         return `${colors.yellow}CANCELLED${colors.reset}`
       case 'skipped':
         return `${colors.dim}SKIPPED${colors.reset}`
-      default:
-        return 'UNKNOWN'
     }
+    return 'UNKNOWN'
   }
 
   static formatDuration(startedAt: string | null, updatedAt: string | null): string {
