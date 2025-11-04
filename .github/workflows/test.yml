@@ -1,0 +1,27 @@
+name: Run tests
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:ci
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: 'Report coverage'
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+
+
