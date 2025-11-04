@@ -98,11 +98,6 @@ class ShowLogAction {
   }
 
   static displayRunSummary(runs: any[]): void {
-    if (runs.length === 0) {
-      Output.success(`No workflow runs found`)
-      return
-    }
-
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
       const duration = Util.formatDuration(run.startedAt, run.updatedAt)
@@ -200,9 +195,15 @@ class ShowLogAction {
     // Get failed runs
     const failedRuns = allRuns.filter((run) => run.conclusion === 'failure')
 
+    if (allRuns.length === 0) {
+      Output.log()
+      Output.success('No runs found')
+      process.exit(0)
+    }
+
     if (failedRuns.length === 0) {
       Output.log()
-      Output.success('All runs are successful ✓')
+      Output.success(`All ${allRuns.length} of ${allRuns.length} runs are successful ✓`)
       process.exit(0)
     }
 
@@ -210,7 +211,9 @@ class ShowLogAction {
     await ShowLogAction.processFailedRuns(repo, failedRuns)
 
     Output.log()
-    Output.warning('See logs above for details on failed workflow runs.')
+    Output.warning(
+      `${failedRuns.length} of ${allRuns.length} runs failed, see logs above for details.`,
+    )
     process.exit(64)
   }
 }
