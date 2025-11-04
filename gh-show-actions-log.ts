@@ -227,12 +227,7 @@ class ShowLogAction {
     await ShowLogAction.processRunningRuns(repo, LIMIT, commitSha)
 
     // Fetch all runs for the commit and display summary
-    const allRunsResult = GhCli.getAllRuns(repo, LIMIT, commitSha)
-    if (!allRunsResult.ok) {
-      Output.error(`Failed to get workflow runs.`)
-      process.exit(1)
-    }
-    const allRuns = Util.parseJsonLines(allRunsResult.result)
+    const allRuns = GhCli.getAllRuns(repo, LIMIT, commitSha)
     ShowLogAction.displayRunSummary(allRuns)
 
     // Get failed runs
@@ -291,12 +286,13 @@ class GhCli {
     )
   }
 
-  static getAllRuns(repo: string, limit: number, commitSha: string) {
+  static getAllRuns(repo: string, limit: number, commitSha: string): any[] {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
-    return Util.execCommand(
+    const outputResult = Util.execCommand(
       `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,workflowName,event,status,conclusion,startedAt,updatedAt --jq '.[]'`,
       { silent: true },
     )
+    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
   static getFailedJobs(repo: string, runId: number) {
