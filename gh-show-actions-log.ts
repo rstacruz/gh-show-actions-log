@@ -114,10 +114,6 @@ class ShowLogAction {
     for (const run of failedRuns) {
       const jobs = GhCli.getFailedJobsByRun(repo, run.databaseId)
 
-      if (jobs.length === 0) {
-        continue
-      }
-
       for (const job of jobs) {
         Output.h2(`Failed job: ${run.workflowName} / ${job.name} (${run.event})`)
         //  (run: ${run.databaseId}, job: ${job.databaseId})`,
@@ -133,8 +129,6 @@ class ShowLogAction {
         Output.log('`````')
         Output.log()
       }
-
-      Output.warning('Workflow run failed, see logs above for details.')
     }
   }
 
@@ -178,7 +172,7 @@ class ShowLogAction {
 
     const shortSha = commitSha.substring(0, 7)
 
-    Output.h1(`GitHub Actions logs for ${repo} @ ${shortSha}`)
+    Output.h1(`GitHub Actions runs for ${repo} @ ${shortSha}`)
 
     // Fetch all runs for the commit and display summary
     let allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
@@ -207,11 +201,17 @@ class ShowLogAction {
     const failedRuns = allRuns.filter((run) => run.conclusion === 'failure')
 
     if (failedRuns.length === 0) {
+      Output.log()
+      Output.success('All runs are successful ✓')
       process.exit(0)
     }
 
     // Process failed runs
     await ShowLogAction.processFailedRuns(repo, failedRuns)
+
+    Output.log()
+    Output.warning('See logs above for details on failed workflow runs.')
+    process.exit(64)
   }
 }
 
