@@ -231,7 +231,7 @@ class ShowLogAction {
     ShowLogAction.displayRunSummary(allRuns)
 
     // Get failed runs
-    const failedRuns = GhCli.getFailedRuns(repo, LIMIT, commitSha)
+    const failedRuns = allRuns.filter((run) => run.conclusion === 'failure')
 
     if (failedRuns.length === 0) {
       process.exit(0)
@@ -307,11 +307,6 @@ class GhCli {
       `gh run view --repo "${repo}" --job "${jobId}" --log`,
       { silent: true },
     )
-  }
-
-  static getFailedRuns(repo: string, limit: number, commitSha: string): any[] {
-    const outputResult = GhCli.listRuns(repo, limit, 'failed', commitSha)
-    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
   static getFailedJobsFromRun(repo: string, runId: number): any[] {
