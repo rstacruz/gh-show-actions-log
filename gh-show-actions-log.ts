@@ -88,13 +88,19 @@ class GhCli {
     )
   }
 
-  static listRuns(repo: string, limit: number, filter: string) {
+  static listRuns(
+    repo: string,
+    limit: number,
+    filter: string,
+    commitSha?: string,
+  ) {
     const jqFilter =
       filter === 'running'
         ? '.[] | select(.status == "in_progress")'
         : '.[] | select(.conclusion == "failure")'
+    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     return Util.execCommand(
-      `gh run list --repo "${repo}" --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion --jq '${jqFilter}'`,
+      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion --jq '${jqFilter}'`,
       { silent: true },
     )
   }
@@ -113,8 +119,8 @@ class GhCli {
     )
   }
 
-  static getFailedRuns(repo: string, limit: number): any[] {
-    const outputResult = GhCli.listRuns(repo, limit, 'failed')
+  static getFailedRuns(repo: string, limit: number, commitSha: string): any[] {
+    const outputResult = GhCli.listRuns(repo, limit, 'failed', commitSha)
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
@@ -131,8 +137,8 @@ class GhCli {
 
 /** Git CLI wrapper class */
 class GitCli {
-  static getCurrentBranch() {
-    return Util.execCommand('git branch --show-current', { silent: true })
+  static getCurrentSha() {
+    return Util.execCommand('git rev-parse HEAD', { silent: true })
   }
 
   static getRemoteUrl() {
@@ -152,6 +158,11 @@ class Util {
       .split('\n')
       .filter((line) => line.trim())
       .map((line) => JSON.parse(line))
+  }
+
+  static validateSha(sha: string): boolean {
+    if (!sha) return false
+    return /^[a-f0-9]{7,40}$/i.test(sha)
   }
 
   static execCommand(
@@ -252,10 +263,14 @@ class ShowLogAction {
     return null
   }
 
-  static async processRunningRuns(repo: string, limit: number): Promise<any[]> {
+  static async processRunningRuns(
+    repo: string,
+    limit: number,
+    commitSha: string,
+  ): Promise<any[]> {
     const failedRuns: any[] = []
 
-    const outputResult = GhCli.listRuns(repo, limit, 'running')
+    const outputResult = GhCli.listRuns(repo, limit, 'running', commitSha)
     if (outputResult.ok) {
       const runs = Util.parseJsonLines(outputResult.result)
 
@@ -321,7 +336,7 @@ class ShowLogAction {
     // Parse arguments
     const args = process.argv.slice(2)
     let repo = args[0]
-    let branch = args[1]
+    let commitSha = args[1]
     const workflowName = args[2] || ''
 
     // Get repository if not provided
@@ -333,31 +348,40 @@ class ShowLogAction {
         Output.error(
           'Could not determine repository. Please provide it as first argument.',
         )
-        Output.log(`Usage: ${BIN} [repo] [branch] [workflow-name]`)
-        Output.log(`Example: ${BIN} owner/repo main ci`)
+        Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
+        Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
         process.exit(1)
       }
     }
 
-    // Get branch if not provided
-    if (!branch) {
-      const branchResult = GitCli.getCurrentBranch()
-      if (branchResult.ok) {
-        branch = branchResult.result
+    // Get SHA if not provided
+    if (!commitSha) {
+      const shaResult = GitCli.getCurrentSha()
+      if (shaResult.ok) {
+        commitSha = shaResult.result
       } else {
         Output.error(
-          'Could not determine current branch. Please provide it as second argument.',
+          'Could not determine current commit SHA. Please provide it as second argument.',
         )
-        Output.log(`Usage: ${BIN} [repo] [branch] [workflow-name]`)
-        Output.log(`Example: ${BIN} owner/repo main ci`)
+        Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
+        Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
         process.exit(1)
       }
+    }
+
+    // Validate SHA format
+    if (!Util.validateSha(commitSha)) {
+      Output.error(
+        `Invalid SHA format: '${commitSha}'. Must be 7-40 hex characters.`,
+      )
+      process.exit(1)
     }
 
     // Check dependencies
     ShowLogAction.checkDependencies()
 
-    Output.h1(`Latest GitHub Actions run for ${repo} (${branch})`)
+    const shortSha = commitSha.substring(0, 7)
+    Output.h1(`Latest GitHub Actions run for ${repo} (${shortSha})`)
 
     // Get workflow ID if name is provided
     if (workflowName) {
@@ -372,18 +396,22 @@ class ShowLogAction {
     }
 
     // Process running runs
-    const runningFailures = await ShowLogAction.processRunningRuns(repo, LIMIT)
+    const runningFailures = await ShowLogAction.processRunningRuns(
+      repo,
+      LIMIT,
+      commitSha,
+    )
 
     // Get failed runs
     const failedRuns =
       runningFailures.length > 0
         ? runningFailures
-        : GhCli.getFailedRuns(repo, LIMIT)
+        : GhCli.getFailedRuns(repo, LIMIT, commitSha)
 
     if (failedRuns.length === 0) {
       if (runningFailures.length === 0) {
         Output.success(
-          `Success! No failed or running workflow runs for branch '${branch}'.`,
+          `Success! No failed or running workflow runs for commit '${shortSha}'.`,
         )
       }
       process.exit(0)
