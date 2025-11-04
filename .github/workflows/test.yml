@@ -10,14 +10,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v1
         with:
-          node-version-file: '.node-version'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint:ci
-      - run: pnpm typecheck
+          bun-version-file: '.node-version'
+      - run: bun install --frozen-lockfile
+      - run: bun run lint:ci
+      - run: bun run typecheck
       # - run: pnpm test
 
       # - name: 'Report coverage'
