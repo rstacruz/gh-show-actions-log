@@ -14,7 +14,6 @@ type ExecCommandFailure = { ok: false; code?: number }
 type ExecCommandResult = ExecCommandSuccess | ExecCommandFailure
 
 // Constants
-const LIMIT = 20
 const TIMEOUT_SECS = 1200
 const INTERVAL_SECS = 10
 const WORKFLOW_WAIT_SECS = 10
@@ -44,13 +43,13 @@ class ShowLogAction {
     process.exit(1)
   }
 
-  static async waitForRunningRuns(repo: string, limit: number, commitSha: string): Promise<void> {
+  static async waitForRunningRuns(repo: string, commitSha: string): Promise<void> {
     let elapsed = 0
 
     Output.info('Waiting for running workflows to complete...')
 
     while (elapsed < TIMEOUT_SECS) {
-      const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter((run) =>
+      const runningRuns = GhCli.getRuns(repo, commitSha).filter((run) =>
         ACTIVE_STATUSES.includes(run.status as any),
       )
 
@@ -140,12 +139,12 @@ class ShowLogAction {
     Output.h1(`GitHub Actions runs for ${repo} @ ${shortSha}`)
 
     // Fetch all runs for the commit and display summary
-    let allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+    let allRuns = GhCli.getRuns(repo, commitSha)
 
     if (allRuns.length === 0) {
       Output.info(`No workflow runs found, trying again in ${WORKFLOW_WAIT_SECS} seconds...`)
       await Util.sleep(WORKFLOW_WAIT_SECS * 1000)
-      allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+      allRuns = GhCli.getRuns(repo, commitSha)
     }
 
     ShowLogAction.displayRunSummary(allRuns)
@@ -157,10 +156,10 @@ class ShowLogAction {
 
     // Process running runs
     if (allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status as any)).length > 0) {
-      await ShowLogAction.waitForRunningRuns(repo, LIMIT, commitSha)
+      await ShowLogAction.waitForRunningRuns(repo, commitSha)
 
       // Refetch all runs after waiting
-      allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+      allRuns = GhCli.getRuns(repo, commitSha)
 
       ShowLogAction.displayRunSummary(allRuns)
     }
@@ -189,10 +188,10 @@ class GhCli {
     return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'")
   }
 
-  static getRuns(repo: string, limit: number, commitSha?: string): any[] {
+  static getRuns(repo: string, commitSha?: string): any[] {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     const outputResult = Util.execCommand(
-      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion,startedAt,updatedAt,event --jq '.[]'`,
+      `gh run list --repo "${repo}" ${commitFlag} --json databaseId,headBranch,workflowName,createdAt,status,conclusion,startedAt,updatedAt,event --jq '.[]'`,
     )
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
