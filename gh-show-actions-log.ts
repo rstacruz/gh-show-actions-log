@@ -84,7 +84,7 @@ class ShowLogAction {
     let elapsed = 0
 
     while (elapsed < TIMEOUT) {
-      const runningRuns = GhCli.listAllRuns(repo, limit, commitSha).filter(
+      const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter(
         (run) => run.status === 'in_progress',
       )
 
@@ -126,7 +126,7 @@ class ShowLogAction {
       )
       Output.log()
 
-      const jobs = GhCli.getFailedJobsFromRun(repo, run.databaseId)
+      const jobs = GhCli.getFailedJobsByRun(repo, run.databaseId)
 
       if (jobs.length === 0) {
         Output.warning('No failed jobs found for this run.')
@@ -138,7 +138,7 @@ class ShowLogAction {
         Output.h3(`Failed Job: ${job.name} (id: ${job.databaseId})`)
 
         Output.log('`````')
-        const logs = GhCli.getJobLogsFromRepo(repo, job.databaseId)
+        const logs = GhCli.getJobLogs(repo, job.databaseId)
         if (logs) {
           Output.log(logs)
           Output.log()
@@ -209,7 +209,7 @@ class ShowLogAction {
     await ShowLogAction.processRunningRuns(repo, LIMIT, commitSha)
 
     // Fetch all runs for the commit and display summary
-    const allRuns = GhCli.listAllRuns(repo, LIMIT, commitSha)
+    const allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
     ShowLogAction.displayRunSummary(allRuns)
 
     // Get failed runs
@@ -237,7 +237,7 @@ class GhCli {
     )
   }
 
-  static listAllRuns(repo: string, limit: number, commitSha?: string): any[] {
+  static getRuns(repo: string, limit: number, commitSha?: string): any[] {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     const outputResult = Util.execCommand(
       `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion,startedAt,updatedAt,event --jq '.[]'`,
@@ -246,7 +246,7 @@ class GhCli {
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
-  static getFailedJobsFromRun(repo: string, runId: number): any[] {
+  static getFailedJobsByRun(repo: string, runId: number): any[] {
     const outputResult = Util.execCommand(
       `gh run view --repo "${repo}" "${runId}" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | {name: .name, databaseId: .databaseId}'`,
       { silent: true },
@@ -254,7 +254,7 @@ class GhCli {
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
-  static getJobLogsFromRepo(repo: string, jobId: number): string | null {
+  static getJobLogs(repo: string, jobId: number): string | null {
     const logsResult = Util.execCommand(
       `gh run view --repo "${repo}" --job "${jobId}" --log`,
       { silent: true },
