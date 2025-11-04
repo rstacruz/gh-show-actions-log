@@ -52,8 +52,7 @@ class ShowLogAction {
 
   static showUsageAndExit(error: string): never {
     Output.error(error)
-    Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
-    Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
+    Output.log(`Usage: ${BIN} [repo] [commit-sha]`)
     Output.log(
       `Example: ${BIN}                    # current repo, current commit`,
     )
@@ -159,7 +158,6 @@ class ShowLogAction {
     const args = process.argv.slice(2)
     let repo = args[0]
     let commitSha = args[1]
-    const workflowName = args[2] || ''
 
     // Get repository if not provided
     if (!repo) {
@@ -203,18 +201,6 @@ class ShowLogAction {
     // Check dependencies
     ShowLogAction.checkDependencies()
 
-    // Get workflow ID if name is provided
-    if (workflowName) {
-      const workflowResult = GhCli.getWorkflowId(workflowName, repo)
-      const workflowId = workflowResult.ok
-        ? workflowResult.result.split('\n')[0] || ''
-        : ''
-      if (!workflowId) {
-        Output.error(`No workflow found containing '${workflowName}'.`)
-        process.exit(1)
-      }
-    }
-
     const shortSha = commitSha.substring(0, 7)
 
     Output.h1(`GitHub Actions logs for ${repo} @ ${shortSha}`)
@@ -248,13 +234,6 @@ class GhCli {
     return Util.execCommand(
       "gh repo view --json nameWithOwner -q '.nameWithOwner'",
       { silent: true, ignoreError: true },
-    )
-  }
-
-  static getWorkflowId(workflowName: string, repo: string) {
-    return Util.execCommand(
-      `gh workflow list --repo "${repo}" --json name,id --jq '.[] | select(.name | contains("${workflowName}")) | .id'`,
-      { silent: true },
     )
   }
 
