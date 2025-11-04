@@ -27,7 +27,7 @@ const colors = {
   reset: '\x1b[0m',
 }
 
-// Output helper class
+/** Output helper class */
 class Output {
   static log(text: string = '') {
     console.log(text)
@@ -61,7 +61,7 @@ class Output {
   }
 }
 
-// GitHub CLI wrapper class
+/** GitHub CLI wrapper class */
 class GhCli {
   static checkAuth() {
     return Util.execCommand('gh auth status', { silent: true })
@@ -146,6 +146,7 @@ class GitCli {
   }
 }
 
+/** Reusable utilities */
 class Util {
   static sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
