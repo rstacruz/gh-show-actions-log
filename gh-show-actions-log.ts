@@ -29,7 +29,7 @@ const colors = {
 
 // Output helper class
 class Output {
-  static log(text = "") {
+  static log(text: string = "") {
     console.log(text);
   }
 
@@ -106,6 +106,21 @@ class GitCli {
   }
 }
 
+class Util {
+  static sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  static parseJsonLines(output: string): any[] {
+    if (!output) return [];
+
+    return output
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line));
+  }
+}
+
 /** Executes a shell command and returns a structured result */
 function execCommand(command: string, options: {
   silent?: boolean;
@@ -161,26 +176,6 @@ function getRepository(): ExecCommandResult {
   return { ok: false, code: 1 };
 }
 
-function getWorkflowId(workflowName: string): string {
-  if (!workflowName) return "";
-
-  const outputResult = GhCli.getWorkflowId(workflowName);
-  return outputResult.ok ? outputResult.result.split("\n")[0] || "" : "";
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function parseJsonLines(output: string): any[] {
-  if (!output) return [];
-
-  return output
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line));
-}
-
 async function waitForWorkflowCompletion(repo: string, runId: number): Promise<any | null> {
   let elapsed = 0;
 
@@ -195,7 +190,7 @@ async function waitForWorkflowCompletion(repo: string, runId: number): Promise<a
         }
 
         process.stdout.write(".");
-        await sleep(INTERVAL * 1000);
+        await Util.sleep(INTERVAL * 1000);
         elapsed += INTERVAL;
         continue;
       } catch (error) {
@@ -218,7 +213,7 @@ async function processRunningRuns(repo: string, limit: number): Promise<any[]> {
 
   const outputResult = GhCli.listRuns(repo, limit, 'running');
   if (outputResult.ok) {
-    const runs = parseJsonLines(outputResult.result);
+    const runs = Util.parseJsonLines(outputResult.result);
 
     for (const run of runs) {
       Output.h2(
@@ -243,12 +238,12 @@ async function processRunningRuns(repo: string, limit: number): Promise<any[]> {
 
 function getFailedRuns(repo: string, limit: number): any[] {
   const outputResult = GhCli.listRuns(repo, limit, 'failed');
-  return outputResult.ok ? parseJsonLines(outputResult.result) : [];
+  return outputResult.ok ? Util.parseJsonLines(outputResult.result) : [];
 }
 
 function getFailedJobs(repo: string, runId: number): any[] {
   const outputResult = GhCli.getFailedJobs(repo, runId);
-  return outputResult.ok ? parseJsonLines(outputResult.result) : [];
+  return outputResult.ok ? Util.parseJsonLines(outputResult.result) : [];
 }
 
 function getJobLogs(repo: string, jobId: number): string | null {
@@ -330,7 +325,8 @@ async function main(): Promise<void> {
 
   // Get workflow ID if name is provided
   if (workflowName) {
-    const workflowId = getWorkflowId(workflowName);
+    const workflowResult = GhCli.getWorkflowId(workflowName);
+    const workflowId = workflowResult.ok ? workflowResult.result.split("\n")[0] || "" : "";
     if (!workflowId) {
       Output.error(`No workflow found containing '${workflowName}'.`);
       process.exit(1);
