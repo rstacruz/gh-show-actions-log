@@ -77,78 +77,41 @@ class ShowLogAction {
     return { ok: false, code: 1 }
   }
 
-  static async waitForWorkflowCompletion(
-    repo: string,
-    runId: number,
-  ): Promise<any | null> {
-    let elapsed = 0
-
-    while (elapsed < TIMEOUT) {
-      const outputResult = GhCli.getRunStatus(repo, runId)
-      if (outputResult.ok) {
-        try {
-          const currentRun = JSON.parse(outputResult.result)
-
-          if (currentRun.status !== 'in_progress') {
-            return currentRun
-          }
-
-          process.stdout.write('.')
-          await Util.sleep(INTERVAL * 1000)
-          elapsed += INTERVAL
-        } catch (error) {
-          Output.error(
-            `Failed to parse run status: ${(error as Error).message}`,
-          )
-          return null
-        }
-      } else {
-        Output.error('Failed to check run status')
-        return null
-      }
-    }
-
-    Output.log()
-    Output.warning('Timeout reached. Workflow may still be running.')
-    return null
-  }
-
   static async processRunningRuns(
     repo: string,
     limit: number,
     commitSha: string,
-  ): Promise<any[]> {
-    const failedRuns: any[] = []
+  ): Promise<void> {
+    let elapsed = 0
 
-    const outputResult = GhCli.listRuns(repo, limit, 'running', commitSha)
-    if (outputResult.ok) {
-      const runs = Util.parseJsonLines(outputResult.result)
+    while (elapsed < TIMEOUT) {
+      const outputResult = GhCli.listRuns(repo, limit, 'running', commitSha)
+      if (outputResult.ok) {
+        const runningRuns = Util.parseJsonLines(outputResult.result)
 
-      for (const run of runs) {
-        Output.log(`Waiting for ${run.workflowName} to finish...`)
-
-        const completedRun = await ShowLogAction.waitForWorkflowCompletion(
-          repo,
-          run.databaseId,
-        )
-        Output.log()
-
-        if (completedRun?.conclusion === 'failure') {
-          failedRuns.push({ ...run, conclusion: 'failure' })
+        if (runningRuns.length === 0) {
+          break
         }
+
+        await Util.sleep(INTERVAL * 1000)
+        elapsed += INTERVAL
+      } else {
+        Output.error('Failed to check running runs')
+        break
       }
     }
 
-    return failedRuns
+    if (elapsed >= TIMEOUT) {
+      Output.warning('Timeout reached. Workflow may still be running.')
+    }
   }
 
-  static displayRunSummary(runs: any[], repo: string, shortSha: string): void {
+  static displayRunSummary(runs: any[]): void {
     if (runs.length === 0) {
-      Output.success(`No workflow runs found for ${repo} @ ${shortSha}`)
+      Output.success(`No workflow runs found`)
       return
     }
 
-    Output.h2(`Workflow runs for ${repo} @ ${shortSha}:`)
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
       const duration = Util.formatDuration(run.startedAt, run.updatedAt)
@@ -261,11 +224,7 @@ class ShowLogAction {
     Output.h1(`GitHub Actions logs for ${repo} @ ${shortSha}`)
 
     // Process running runs
-    const runningFailures = await ShowLogAction.processRunningRuns(
-      repo,
-      LIMIT,
-      commitSha,
-    )
+    await ShowLogAction.processRunningRuns(repo, LIMIT, commitSha)
 
     // Fetch all runs for the commit and display summary
     const allRunsResult = GhCli.getAllRuns(repo, LIMIT, commitSha)
@@ -274,22 +233,17 @@ class ShowLogAction {
       process.exit(1)
     }
     const allRuns = Util.parseJsonLines(allRunsResult.result)
-    ShowLogAction.displayRunSummary(allRuns, repo, shortSha)
+    ShowLogAction.displayRunSummary(allRuns)
 
     // Get failed runs
-    const failedRuns =
-      runningFailures.length > 0
-        ? runningFailures
-        : GhCli.getFailedRuns(repo, LIMIT, commitSha)
+    const failedRuns = GhCli.getFailedRuns(repo, LIMIT, commitSha)
 
     if (failedRuns.length === 0) {
-      if (runningFailures.length === 0) {
-      }
       process.exit(0)
     }
 
     // Process failed runs
-    await ShowLogAction.processFailedRuns(repo, failedRuns, shortSha)
+    await ShowLogAction.processFailedRuns(repo, failedRuns)
   }
 }
 
