@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsgo --noEmit",
     "format": "biome check --write",
     "lint": "biome check",
+    "typecheck": "tsgo --noEmit",
     "lint:ci": "biome ci"
   },
   "devDependencies": {

@@ -1,25 +1,21 @@
-#!/usr/bin/env -S node --experimental-strip-types
-
-/**
- * Script to print logs from latest test failures in GitHub Actions
- */
+#!/usr/bin/env node
 
 import { execSync } from 'node:child_process'
 import { basename } from 'node:path'
 
 const BIN = basename(process.argv[1] ?? 'gh-show-actions-log')
 
-type ExecCommandSuccess = { ok: true; result: string }
-type ExecCommandFailure = { ok: false; code?: number }
-type ExecCommandResult = ExecCommandSuccess | ExecCommandFailure
+/**
+ * @typedef {{ ok: true, result: string } | { ok: false, code: number }} ExecCommandResult
+ */
 
 // Constants
 const TIMEOUT_SECS = 1200
 const INTERVAL_SECS = 10
 const WORKFLOW_WAIT_SECS = 10
 
-// Status constants
-const ACTIVE_STATUSES = ['in_progress', 'queued'] as const
+/** @type {Array<'in_progress' | 'queued'>} */
+const ACTIVE_STATUSES = ['in_progress', 'queued']
 
 // ANSI color codes
 const colors = {
@@ -34,7 +30,10 @@ const colors = {
 
 /** The main action */
 class ShowLogAction {
-  static showUsageAndExit(error: string): never {
+  /**
+   * @param {string} error
+   */
+  static showUsageAndExit(error) {
     Output.error(error)
     Output.log()
     Output.log(`Usage: ${BIN} [repo] [commit-sha]`)
@@ -43,14 +42,18 @@ class ShowLogAction {
     process.exit(1)
   }
 
-  static async waitForRunningRuns(repo: string, commitSha: string): Promise<void> {
+  /**
+   * @param {string} repo
+   * @param {string} commitSha
+   */
+  static async waitForRunningRuns(repo, commitSha) {
     let elapsed = 0
 
     Output.info('Waiting for running workflows to complete...')
 
     while (elapsed < TIMEOUT_SECS) {
       const runningRuns = GhCli.getRuns(repo, commitSha).filter((run) =>
-        ACTIVE_STATUSES.includes(run.status as any),
+        ACTIVE_STATUSES.includes(run.status),
       )
 
       if (runningRuns.length === 0) {
@@ -66,7 +69,10 @@ class ShowLogAction {
     }
   }
 
-  static displayRunSummary(runs: any[]): void {
+  /**
+   * @param {Array<any>} runs
+   */
+  static displayRunSummary(runs) {
     if (runs.length === 0) return
     Output.log()
 
@@ -77,7 +83,11 @@ class ShowLogAction {
     }
   }
 
-  static async processFailedRuns(repo: string, failedRuns: any[]): Promise<void> {
+  /**
+   * @param {string} repo
+   * @param {Array<any>} failedRuns
+   */
+  static async processFailedRuns(repo, failedRuns) {
     for (const run of failedRuns) {
       const jobs = GhCli.getFailedJobsByRun(repo, run.databaseId)
 
@@ -99,7 +109,7 @@ class ShowLogAction {
     }
   }
 
-  static async main(): Promise<void> {
+  static async main() {
     // Parse arguments
     const args = process.argv.slice(2)
     let repo = args[0]
@@ -109,21 +119,23 @@ class ShowLogAction {
     if (!repo) {
       const repoResult = GhCli.getRepo()
       if (!repoResult.ok) {
-        ShowLogAction.showUsageAndExit('Could not determine repository.')
+        return ShowLogAction.showUsageAndExit('Could not determine repository.')
       }
       repo = repoResult.result
     }
 
     // Validate that if repo was explicitly provided, commit must also be provided
     if (args[0] && !args[1]) {
-      ShowLogAction.showUsageAndExit('When specifying a repository, also specify a commit SHA.')
+      return ShowLogAction.showUsageAndExit(
+        'When specifying a repository, also specify a commit SHA.',
+      )
     }
 
     // Get SHA if not provided
     if (!commitSha) {
       const shaResult = GitCli.getCurrentSha()
       if (!shaResult.ok) {
-        ShowLogAction.showUsageAndExit('Could not determine current commit SHA.')
+        return ShowLogAction.showUsageAndExit('Could not determine current commit SHA.')
       }
       commitSha = shaResult.result
     }
@@ -155,7 +167,7 @@ class ShowLogAction {
     }
 
     // Process running runs
-    if (allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status as any)).length > 0) {
+    if (allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status)).length > 0) {
       await ShowLogAction.waitForRunningRuns(repo, commitSha)
 
       // Refetch all runs after waiting
@@ -188,7 +200,11 @@ class GhCli {
     return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'")
   }
 
-  static getRuns(repo: string, commitSha?: string): any[] {
+  /**
+   * @param {string} repo
+   * @param {string} [commitSha]
+   */
+  static getRuns(repo, commitSha) {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     const outputResult = Util.execCommand(
       `gh run list --repo "${repo}" ${commitFlag} --json databaseId,headBranch,workflowName,createdAt,status,conclusion,startedAt,updatedAt,event --jq '.[]'`,
@@ -196,14 +212,22 @@ class GhCli {
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
-  static getFailedJobsByRun(repo: string, runId: number): any[] {
+  /**
+   * @param {string} repo
+   * @param {number} runId
+   */
+  static getFailedJobsByRun(repo, runId) {
     const outputResult = Util.execCommand(
       `gh run view --repo "${repo}" "${runId}" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | {name: .name, databaseId: .databaseId}'`,
     )
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
-  static getJobLogs(repo: string, jobId: number): string | null {
+  /**
+   * @param {string} repo
+   * @param {number} jobId
+   */
+  static getJobLogs(repo, jobId) {
     const logsResult = Util.execCommand(`gh run view --repo "${repo}" --job "${jobId}" --log`)
     return logsResult.ok ? logsResult.result : null
   }
@@ -222,35 +246,56 @@ class GitCli {
 
 /** Output helper class */
 class Output {
-  static log(text: string = '') {
+  /**
+   * @param {string} [text]
+   */
+  static log(text = '') {
     console.log(text)
   }
 
-  static error(text: string) {
+  /**
+   * @param {string} text
+   */
+  static error(text) {
     console.log()
     console.error(`${colors.red}Error: ${text}${colors.reset}`)
   }
 
-  static success(text: string) {
+  /**
+   * @param {string} text
+   */
+  static success(text) {
     console.log()
     console.log(`${colors.green}${text}${colors.reset}`)
   }
 
-  static info(text: string) {
+  /**
+   * @param {string} text
+   */
+  static info(text) {
     console.log()
     console.log(`${colors.blue}${text}${colors.reset}`)
   }
 
-  static warning(text: string) {
+  /**
+   * @param {string} text
+   */
+  static warning(text) {
     console.log()
     console.log(`${colors.yellow}${text}${colors.reset}`)
   }
 
-  static h1(text: string) {
+  /**
+   * @param {string} text
+   */
+  static h1(text) {
     console.log(`${colors.bold}# ${text}${colors.reset}`)
   }
 
-  static h2(text: string) {
+  /**
+   * @param {string} text
+   */
+  static h2(text) {
     console.log()
     console.log(`${colors.bold}## ${text}${colors.reset}`)
   }
@@ -258,11 +303,17 @@ class Output {
 
 /** Reusable utilities */
 class Util {
-  static sleep(ms: number): Promise<void> {
+  /**
+   * @param {number} ms
+   */
+  static sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  static parseJsonLines(output: string): any[] {
+  /**
+   * @param {string} output
+   */
+  static parseJsonLines(output) {
     if (!output) return []
 
     return output
@@ -271,12 +322,19 @@ class Util {
       .map((line) => JSON.parse(line))
   }
 
-  static validateSha(sha: string): boolean {
+  /**
+   * @param {string} sha
+   */
+  static validateSha(sha) {
     if (!sha) return false
     return /^[a-f0-9]{7,40}$/i.test(sha)
   }
 
-  static formatStatus(status: string, conclusion: string | null): string {
+  /**
+   * @param {string} status
+   * @param {string|null} conclusion
+   */
+  static formatStatus(status, conclusion) {
     switch (status) {
       case 'queued':
         return `${colors.yellow}QUEUED${colors.reset}`
@@ -296,7 +354,11 @@ class Util {
     return 'UNKNOWN'
   }
 
-  static formatDuration(startedAt: string | null, updatedAt: string | null): string {
+  /**
+   * @param {string|null} startedAt
+   * @param {string|null} updatedAt
+   */
+  static formatDuration(startedAt, updatedAt) {
     if (!startedAt || !updatedAt) return 'N/A'
 
     const start = new Date(startedAt)
@@ -307,18 +369,20 @@ class Util {
     return `${seconds}s`
   }
 
-  static execCommand(
-    command: string,
-    execSyncOptions: Parameters<typeof execSync>[1] = {},
-  ): ExecCommandResult {
+  /**
+   * @param {string} command
+   * @param {import('node:child_process').ExecSyncOptions} [execSyncOptions]
+   * @returns {ExecCommandResult}
+   */
+  static execCommand(command, execSyncOptions = {}) {
     try {
       const result = execSync(command, {
         encoding: 'utf-8',
         stdio: 'pipe',
         ...execSyncOptions,
-      }) as string
+      })
 
-      const trimmedResult = result.trim()
+      const trimmedResult = result.toString().trim()
 
       if (process.env.DEBUG) {
         Output.log(
@@ -327,17 +391,18 @@ class Util {
       }
 
       return { ok: true, result: trimmedResult }
-    } catch (error: unknown) {
+    } catch (error) {
       if (process.env.DEBUG) {
         Output.log(`> Running \`\`${command}\`\` => error`)
       }
 
-      return { ok: false, code: ((error as any).status || 1) as number }
+      // @ts-expect-error - error.status exists on ExecSyncError
+      return { ok: false, code: error.status || 1 }
     }
   }
 }
 
-ShowLogAction.main().catch((error: Error) => {
+ShowLogAction.main().catch((/** @type {Error} */ error) => {
   Output.error(error.message)
   process.exit(1)
 })
