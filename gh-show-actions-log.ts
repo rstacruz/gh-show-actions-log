@@ -85,7 +85,9 @@ class ShowLogAction {
     let elapsed = 0
 
     while (elapsed < TIMEOUT) {
-      const runningRuns = GhCli.listRuns(repo, limit, 'running', commitSha)
+      const runningRuns = GhCli.listAllRuns(repo, limit, commitSha).filter(
+        (run) => run.status === 'in_progress',
+      )
 
       if (runningRuns.length === 0) {
         break
@@ -203,7 +205,7 @@ class ShowLogAction {
 
     // Get workflow ID if name is provided
     if (workflowName) {
-      const workflowResult = GhCli.getWorkflowId(workflowName)
+      const workflowResult = GhCli.getWorkflowId(workflowName, repo)
       const workflowId = workflowResult.ok
         ? workflowResult.result.split('\n')[0] || ''
         : ''
@@ -249,9 +251,9 @@ class GhCli {
     )
   }
 
-  static getWorkflowId(workflowName: string) {
+  static getWorkflowId(workflowName: string, repo: string) {
     return Util.execCommand(
-      `gh workflow list --json name,id --jq '.[] | select(.name | contains("${workflowName}")) | .id'`,
+      `gh workflow list --repo "${repo}" --json name,id --jq '.[] | select(.name | contains("${workflowName}")) | .id'`,
       { silent: true },
     )
   }
@@ -263,23 +265,6 @@ class GhCli {
       { silent: true },
     )
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
-  }
-
-  static listRuns(
-    repo: string,
-    limit: number,
-    filter: string,
-    commitSha?: string,
-  ): any[] {
-    const allRuns = GhCli.listAllRuns(repo, limit, commitSha)
-
-    if (filter === 'running') {
-      return allRuns.filter((run) => run.status === 'in_progress')
-    } else if (filter === 'failure') {
-      return allRuns.filter((run) => run.conclusion === 'failure')
-    }
-
-    return []
   }
 
   static getFailedJobsFromRun(repo: string, runId: number): any[] {
