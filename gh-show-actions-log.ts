@@ -76,8 +76,7 @@ class ShowLogAction {
   static async waitForRunningRuns(repo: string, limit: number, commitSha: string): Promise<void> {
     let elapsed = 0
 
-    Output.log()
-    Output.log('Waiting for running workflows to complete...')
+    Output.info('Waiting for running workflows to complete...')
 
     while (elapsed < TIMEOUT) {
       const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter((run) =>
@@ -98,6 +97,9 @@ class ShowLogAction {
   }
 
   static displayRunSummary(runs: any[]): void {
+    if (runs.length === 0) return
+    Output.log()
+
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
       const duration = Util.formatDuration(run.startedAt, run.updatedAt)
@@ -113,6 +115,7 @@ class ShowLogAction {
         Output.h2(`Failed job: ${run.workflowName} / ${job.name} (${run.event})`)
         //  (run: ${run.databaseId}, job: ${job.databaseId})`,
 
+        Output.log()
         Output.log('`````')
         const logs = GhCli.getJobLogs(repo, job.databaseId)
         if (logs) {
@@ -122,7 +125,6 @@ class ShowLogAction {
           Output.warning(`Could not fetch logs for job ${job.databaseId}`)
         }
         Output.log('`````')
-        Output.log()
       }
     }
   }
@@ -174,12 +176,17 @@ class ShowLogAction {
 
     if (allRuns.length === 0) {
       // wait for 10 seconds, then try again
-      Output.log(`No workflow runs found, trying again in 10 seconds...`)
+      Output.info(`No workflow runs found, trying again in 10 seconds...`)
       await Util.sleep(10000)
       allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
     }
 
     ShowLogAction.displayRunSummary(allRuns)
+
+    if (allRuns.length === 0) {
+      Output.success('No runs found')
+      process.exit(0)
+    }
 
     // Process running runs
     if (allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status as any)).length > 0) {
@@ -188,21 +195,13 @@ class ShowLogAction {
       // Refetch all runs after waiting
       allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
 
-      Output.log()
       ShowLogAction.displayRunSummary(allRuns)
     }
 
     // Get failed runs
     const failedRuns = allRuns.filter((run) => run.conclusion === 'failure')
 
-    if (allRuns.length === 0) {
-      Output.log()
-      Output.success('No runs found')
-      process.exit(0)
-    }
-
     if (failedRuns.length === 0) {
-      Output.log()
       Output.success(`All ${allRuns.length} of ${allRuns.length} runs are successful ✓`)
       process.exit(0)
     }
@@ -210,7 +209,6 @@ class ShowLogAction {
     // Process failed runs
     await ShowLogAction.processFailedRuns(repo, failedRuns)
 
-    Output.log()
     Output.warning(
       `${failedRuns.length} of ${allRuns.length} runs failed, see logs above for details.`,
     )
@@ -274,26 +272,32 @@ class Output {
   }
 
   static error(text: string) {
+    console.log()
     console.error(`${colors.red}Error: ${text}${colors.reset}`)
   }
 
   static success(text: string) {
+    console.log()
     console.log(`${colors.green}${text}${colors.reset}`)
   }
 
+  static info(text: string) {
+    console.log()
+    console.log(`${colors.blue}${text}${colors.reset}`)
+  }
+
   static warning(text: string) {
+    console.log()
     console.log(`${colors.yellow}${text}${colors.reset}`)
   }
 
   static h1(text: string) {
-    console.log(`${colors.bold}${colors.blue}# ${text}${colors.reset}`)
-    console.log()
+    console.log(`${colors.bold}# ${text}${colors.reset}`)
   }
 
   static h2(text: string) {
     console.log()
-    console.log(`${colors.bold}${colors.blue}## ${text}${colors.reset}`)
-    console.log()
+    console.log(`${colors.bold}## ${text}${colors.reset}`)
   }
 }
 
