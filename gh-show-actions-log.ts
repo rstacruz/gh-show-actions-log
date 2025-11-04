@@ -34,27 +34,11 @@ const colors = {
 
 /** The main action */
 class ShowLogAction {
-  static checkDependencies() {
-    // Check if gh CLI is installed
-    const ghCheck = Util.execCommand('command -v gh', { silent: true })
-    if (!ghCheck.ok) {
-      Output.error('GitHub CLI (gh) is not installed. Please install it first.')
-      Output.log('Visit: https://cli.github.com/manual/installation')
-      process.exit(1)
-    }
-
-    // Check if user is authenticated
-    const authCheck = GhCli.checkAuth()
-    if (!authCheck.ok) {
-      Output.error("Not authenticated with GitHub CLI. Run 'gh auth login' first.")
-      process.exit(1)
-    }
-  }
-
   static showUsageAndExit(error: string): never {
     Output.error(error)
+    Output.log()
     Output.log(`Usage: ${BIN} [repo] [commit-sha]`)
-    Output.log(`Example: ${BIN}                    # current repo, current commit`)
+    Output.log(`Example: ${BIN}                     # current repo, current commit`)
     Output.log(`Example: ${BIN} owner/repo abc1234  # specific repo and commit`)
     process.exit(1)
   }
@@ -150,9 +134,6 @@ class ShowLogAction {
       process.exit(1)
     }
 
-    // Check dependencies
-    ShowLogAction.checkDependencies()
-
     const shortSha = commitSha.substring(0, 7)
 
     Output.h1(`GitHub Actions runs for ${repo} @ ${shortSha}`)
@@ -211,7 +192,6 @@ class GhCli {
   static getRepo() {
     return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'", {
       silent: true,
-      ignoreError: true,
     })
   }
 
@@ -342,7 +322,6 @@ class Util {
     command: string,
     options: {
       silent?: boolean
-      ignoreError?: boolean
       execSyncOptions?: Parameters<typeof execSync>[1]
     } = {},
   ): ExecCommandResult {
@@ -365,9 +344,6 @@ class Util {
         Output.log(`> Running \`\`${command}\`\` => error`)
       }
 
-      if (options.ignoreError) {
-        return { ok: true, result: '' }
-      }
       return { ok: false, code: ((error as any).status || 1) as number }
     }
   }
