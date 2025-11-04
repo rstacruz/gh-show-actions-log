@@ -181,8 +181,18 @@ class Util {
         ...options,
       }).trim()
 
+      if (process.env.DEBUG) {
+        Output.log(
+          `> Running \`\`${command}\`\` => \`\`${JSON.stringify(result).substring(0, 50)}\`\``,
+        )
+      }
+
       return { ok: true, result }
     } catch (error: unknown) {
+      if (process.env.DEBUG) {
+        Output.log(`> Running \`\`${command}\`\` => error`)
+      }
+
       if (options.ignoreError) {
         return { ok: true, result: '' }
       }
