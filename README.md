@@ -9,9 +9,8 @@ Fetch and display logs from the latest failed GitHub Actions workflow runs.
 
 You need Node.js and [GitHub CLI](https://cli.github.com/manual/installation).
 
-1. Clone this repository
+1. Download [`gh-show-actions-log`](https://github.com/rstacruz/gh-show-actions-log/raw/refs/heads/main/gh-show-actions-log) to a directory included in your PATH
 2. Make the script executable (`chmod +x gh-show-actions-log`)
-3. Place it in a directory included in your PATH
 
 ### Examples
 
