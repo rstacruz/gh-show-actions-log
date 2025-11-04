@@ -17,6 +17,7 @@ type ExecCommandResult = ExecCommandSuccess | ExecCommandFailure
 const LIMIT = 20
 const TIMEOUT_SECS = 1200
 const INTERVAL_SECS = 10
+const WORKFLOW_WAIT_SECS = 10
 
 // Status constants
 const ACTIVE_STATUSES = ['in_progress', 'queued'] as const
@@ -142,9 +143,8 @@ class ShowLogAction {
     let allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
 
     if (allRuns.length === 0) {
-      // wait for 10 seconds, then try again
-      Output.info(`No workflow runs found, trying again in 10 seconds...`)
-      await Util.sleep(10000)
+      Output.info(`No workflow runs found, trying again in ${WORKFLOW_WAIT_SECS} seconds...`)
+      await Util.sleep(WORKFLOW_WAIT_SECS * 1000)
       allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
     }
 
