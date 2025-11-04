@@ -182,6 +182,14 @@ class ShowLogAction {
 
     // Fetch all runs for the commit and display summary
     let allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+
+    if (allRuns.length === 0) {
+      // wait for 10 seconds, then try again
+      Output.log(`No workflow runs found, trying again in 10 seconds...`)
+      await Util.sleep(10000)
+      allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+    }
+
     ShowLogAction.displayRunSummary(allRuns)
 
     // Process running runs
