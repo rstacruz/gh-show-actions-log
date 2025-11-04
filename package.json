@@ -1,6 +1,7 @@
 {
   "name": "gh-show-actions-log",
   "private": true,
+  "type": "module",
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "format": "biome check --write",

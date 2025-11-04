@@ -18,6 +18,9 @@ const LIMIT = 20
 const TIMEOUT = 1200 // 20 minutes in seconds
 const INTERVAL = 10 // 10 seconds
 
+// Status constants
+const ACTIVE_STATUSES = ['in_progress', 'queued'] as const
+
 // ANSI color codes
 const colors = {
   bold: '\x1b[0;1m',
@@ -77,8 +80,8 @@ class ShowLogAction {
     Output.log('Waiting for running workflows to complete...')
 
     while (elapsed < TIMEOUT) {
-      const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter(
-        (run) => run.status === 'in_progress',
+      const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter((run) =>
+        ACTIVE_STATUSES.includes(run.status as any),
       )
 
       if (runningRuns.length === 0) {
@@ -103,25 +106,21 @@ class ShowLogAction {
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
       const duration = Util.formatDuration(run.startedAt, run.updatedAt)
-      Output.log(`- ${status}: ${run.workflowName} / ${run.event} (${duration})`)
+      Output.log(`- ${status}: ${run.workflowName} (${run.event}) - ${duration}`)
     }
   }
 
   static async processFailedRuns(repo: string, failedRuns: any[]): Promise<void> {
     for (const run of failedRuns) {
-      Output.h2(`Failed run for workflow '${run.workflowName}' (run ID: ${run.databaseId})`)
-      Output.log()
-
       const jobs = GhCli.getFailedJobsByRun(repo, run.databaseId)
 
       if (jobs.length === 0) {
-        Output.warning('No failed jobs found for this run.')
-        Output.log()
         continue
       }
 
       for (const job of jobs) {
-        Output.h3(`Failed Job: ${job.name} (id: ${job.databaseId})`)
+        Output.h2(`Failed job: ${run.workflowName} / ${job.name} (${run.event})`)
+        //  (run: ${run.databaseId}, job: ${job.databaseId})`,
 
         Output.log('`````')
         const logs = GhCli.getJobLogs(repo, job.databaseId)
@@ -186,7 +185,7 @@ class ShowLogAction {
     ShowLogAction.displayRunSummary(allRuns)
 
     // Process running runs
-    if (allRuns.filter((run) => run.status === 'in_progress').length > 0) {
+    if (allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status as any)).length > 0) {
       await ShowLogAction.waitForRunningRuns(repo, LIMIT, commitSha)
 
       // Refetch all runs after waiting
@@ -281,12 +280,8 @@ class Output {
   }
 
   static h2(text: string) {
-    console.log(`${colors.bold}${colors.blue}## ${text}${colors.reset}`)
     console.log()
-  }
-
-  static h3(text: string) {
-    console.log(`${colors.bold}${colors.blue}### ${text}${colors.reset}`)
+    console.log(`${colors.bold}${colors.blue}## ${text}${colors.reset}`)
     console.log()
   }
 }
@@ -312,6 +307,10 @@ class Util {
   }
 
   static formatStatus(status: string, conclusion: string | null): string {
+    if (status === 'queued') {
+      return `${colors.yellow}QUEUED${colors.reset}`
+    }
+
     if (status === 'in_progress') {
       return `${colors.blue}RUNNING${colors.reset}`
     }
