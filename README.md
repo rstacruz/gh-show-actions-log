@@ -22,3 +22,23 @@ gh-show-actions-log
 # or specific repo/commit:
 gh-show-actions-log owner/repo abcd1234
 ```
+
+## Suggested use cases
+
+- Ask your favourite AI coding assistant to fix CI failures:
+
+  ```
+  Run `gh-show-actions-log` to view errors and address them if any
+  ```
+
+- Get alerted when CI fails or succeeds:
+
+  ```sh
+  gh-show-actions-log && say "CI passed!" || say "CI failed!"
+  ```
+
+- Show logs after pushing code:
+
+  ```sh
+  git push && gh-show-actions-log 
+  ```
