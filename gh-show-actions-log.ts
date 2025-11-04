@@ -5,8 +5,9 @@
  */
 
 import { execSync } from 'node:child_process'
+import { basename } from 'node:path'
 
-const BIN = process.argv[1]
+const BIN = basename(process.argv[1] ?? 'gh-show-actions-log')
 
 type ExecCommandSuccess = { ok: true; result: string }
 type ExecCommandFailure = { ok: false; code?: number }
@@ -52,6 +53,10 @@ class ShowLogAction {
     Output.error(error)
     Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
     Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
+    Output.log(
+      `Example: ${BIN}                    # current repo, current commit`,
+    )
+    Output.log(`Example: ${BIN} owner/repo abc1234  # specific repo and commit`)
     process.exit(1)
   }
 
@@ -198,6 +203,13 @@ class ShowLogAction {
           'Could not determine repository. Please provide it.',
         )
       }
+    }
+
+    // Validate that if repo was explicitly provided, commit must also be provided
+    if (args[0] && !args[1]) {
+      ShowLogAction.showUsageAndExit(
+        'When specifying a repository, you must also specify a commit SHA.',
+      )
     }
 
     // Get SHA if not provided
