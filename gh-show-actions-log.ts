@@ -14,7 +14,7 @@ type ExecCommandFailure = { ok: false; code?: number }
 type ExecCommandResult = ExecCommandSuccess | ExecCommandFailure
 
 // Constants
-const LIMIT = 1
+const LIMIT = 20
 const TIMEOUT = 1200 // 20 minutes in seconds
 const INTERVAL = 10 // 10 seconds
 
@@ -73,6 +73,9 @@ class ShowLogAction {
   static async waitForRunningRuns(repo: string, limit: number, commitSha: string): Promise<void> {
     let elapsed = 0
 
+    Output.log()
+    Output.log('Waiting for running workflows to complete...')
+
     while (elapsed < TIMEOUT) {
       const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter(
         (run) => run.status === 'in_progress',
@@ -80,11 +83,6 @@ class ShowLogAction {
 
       if (runningRuns.length === 0) {
         break
-      }
-
-      if (elapsed === 0) {
-        Output.log()
-        Output.log('Waiting for running workflows to complete...')
       }
 
       await Util.sleep(INTERVAL * 1000)
@@ -183,12 +181,15 @@ class ShowLogAction {
 
     Output.h1(`GitHub Actions logs for ${repo} @ ${shortSha}`)
 
-    // Process running runs
-    await ShowLogAction.waitForRunningRuns(repo, LIMIT, commitSha)
-
     // Fetch all runs for the commit and display summary
-    const allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+    let allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
     ShowLogAction.displayRunSummary(allRuns)
+
+    // Process running runs
+    if (allRuns.filter((run) => run.status === 'in_progress').length > 0) {
+      await ShowLogAction.waitForRunningRuns(repo, LIMIT, commitSha)
+      allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+    }
 
     // Get failed runs
     const failedRuns = allRuns.filter((run) => run.conclusion === 'failure')
@@ -325,9 +326,7 @@ class Util {
   }
 
   static formatDuration(startedAt: string | null, updatedAt: string | null): string {
-    if (!startedAt || !updatedAt) {
-      return 'N/A'
-    }
+    if (!startedAt || !updatedAt) return 'N/A'
 
     const start = new Date(startedAt)
     const end = new Date(updatedAt)
