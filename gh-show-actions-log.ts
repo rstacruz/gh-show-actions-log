@@ -43,9 +43,7 @@ class ShowLogAction {
     // Check if user is authenticated
     const authCheck = GhCli.checkAuth()
     if (!authCheck.ok) {
-      Output.error(
-        "Not authenticated with GitHub CLI. Run 'gh auth login' first.",
-      )
+      Output.error("Not authenticated with GitHub CLI. Run 'gh auth login' first.")
       process.exit(1)
     }
   }
@@ -53,9 +51,7 @@ class ShowLogAction {
   static showUsageAndExit(error: string): never {
     Output.error(error)
     Output.log(`Usage: ${BIN} [repo] [commit-sha]`)
-    Output.log(
-      `Example: ${BIN}                    # current repo, current commit`,
-    )
+    Output.log(`Example: ${BIN}                    # current repo, current commit`)
     Output.log(`Example: ${BIN} owner/repo abc1234  # specific repo and commit`)
     process.exit(1)
   }
@@ -68,19 +64,13 @@ class ShowLogAction {
     const remoteUrlResult = GitCli.getRemoteUrl()
     if (remoteUrlResult.ok) {
       const match = remoteUrlResult.result.match(/github\.com[:/](.*)\.git/)
-      return match?.[1]
-        ? { ok: true, result: match[1] }
-        : { ok: false, code: 1 }
+      return match?.[1] ? { ok: true, result: match[1] } : { ok: false, code: 1 }
     }
 
     return { ok: false, code: 1 }
   }
 
-  static async processRunningRuns(
-    repo: string,
-    limit: number,
-    commitSha: string,
-  ): Promise<void> {
+  static async waitForRunningRuns(repo: string, limit: number, commitSha: string): Promise<void> {
     let elapsed = 0
 
     while (elapsed < TIMEOUT) {
@@ -90,6 +80,11 @@ class ShowLogAction {
 
       if (runningRuns.length === 0) {
         break
+      }
+
+      if (elapsed === 0) {
+        Output.log()
+        Output.log('Waiting for running workflows to complete...')
       }
 
       await Util.sleep(INTERVAL * 1000)
@@ -110,20 +105,13 @@ class ShowLogAction {
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
       const duration = Util.formatDuration(run.startedAt, run.updatedAt)
-      Output.log(
-        `- ${status}: ${run.workflowName} / ${run.event} (${duration})`,
-      )
+      Output.log(`- ${status}: ${run.workflowName} / ${run.event} (${duration})`)
     }
   }
 
-  static async processFailedRuns(
-    repo: string,
-    failedRuns: any[],
-  ): Promise<void> {
+  static async processFailedRuns(repo: string, failedRuns: any[]): Promise<void> {
     for (const run of failedRuns) {
-      Output.h2(
-        `Failed run for workflow '${run.workflowName}' (run ID: ${run.databaseId})`,
-      )
+      Output.h2(`Failed run for workflow '${run.workflowName}' (run ID: ${run.databaseId})`)
       Output.log()
 
       const jobs = GhCli.getFailedJobsByRun(repo, run.databaseId)
@@ -162,39 +150,29 @@ class ShowLogAction {
     // Get repository if not provided
     if (!repo) {
       const repoResult = ShowLogAction.getRepository()
-      if (repoResult.ok) {
-        repo = repoResult.result
-      } else {
-        ShowLogAction.showUsageAndExit(
-          'Could not determine repository. Please provide it.',
-        )
+      if (!repoResult.ok) {
+        ShowLogAction.showUsageAndExit('Could not determine repository.')
       }
+      repo = repoResult.result
     }
 
     // Validate that if repo was explicitly provided, commit must also be provided
     if (args[0] && !args[1]) {
-      ShowLogAction.showUsageAndExit(
-        'When specifying a repository, you must also specify a commit SHA.',
-      )
+      ShowLogAction.showUsageAndExit('When specifying a repository, also specify a commit SHA.')
     }
 
     // Get SHA if not provided
     if (!commitSha) {
       const shaResult = GitCli.getCurrentSha()
-      if (shaResult.ok) {
-        commitSha = shaResult.result
-      } else {
-        ShowLogAction.showUsageAndExit(
-          'Could not determine current commit SHA. Please provide it.',
-        )
+      if (!shaResult.ok) {
+        ShowLogAction.showUsageAndExit('Could not determine current commit SHA.')
       }
+      commitSha = shaResult.result
     }
 
     // Validate SHA format
     if (!Util.validateSha(commitSha)) {
-      Output.error(
-        `Invalid SHA format: '${commitSha}'. Must be 7-40 hex characters.`,
-      )
+      Output.error(`Invalid SHA format: '${commitSha}'. Must be 7-40 hex characters.`)
       process.exit(1)
     }
 
@@ -206,7 +184,7 @@ class ShowLogAction {
     Output.h1(`GitHub Actions logs for ${repo} @ ${shortSha}`)
 
     // Process running runs
-    await ShowLogAction.processRunningRuns(repo, LIMIT, commitSha)
+    await ShowLogAction.waitForRunningRuns(repo, LIMIT, commitSha)
 
     // Fetch all runs for the commit and display summary
     const allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
@@ -231,10 +209,10 @@ class GhCli {
   }
 
   static getRepo() {
-    return Util.execCommand(
-      "gh repo view --json nameWithOwner -q '.nameWithOwner'",
-      { silent: true, ignoreError: true },
-    )
+    return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'", {
+      silent: true,
+      ignoreError: true,
+    })
   }
 
   static getRuns(repo: string, limit: number, commitSha?: string): any[] {
@@ -255,10 +233,9 @@ class GhCli {
   }
 
   static getJobLogs(repo: string, jobId: number): string | null {
-    const logsResult = Util.execCommand(
-      `gh run view --repo "${repo}" --job "${jobId}" --log`,
-      { silent: true },
-    )
+    const logsResult = Util.execCommand(`gh run view --repo "${repo}" --job "${jobId}" --log`, {
+      silent: true,
+    })
     return logsResult.ok ? logsResult.result : null
   }
 }
@@ -347,10 +324,7 @@ class Util {
     }
   }
 
-  static formatDuration(
-    startedAt: string | null,
-    updatedAt: string | null,
-  ): string {
+  static formatDuration(startedAt: string | null, updatedAt: string | null): string {
     if (!startedAt || !updatedAt) {
       return 'N/A'
     }
