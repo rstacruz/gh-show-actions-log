@@ -27,180 +27,6 @@ const colors = {
   reset: '\x1b[0m',
 }
 
-/** Output helper class */
-class Output {
-  static log(text: string = '') {
-    console.log(text)
-  }
-
-  static error(text: string) {
-    console.error(`${colors.red}Error: ${text}${colors.reset}`)
-  }
-
-  static success(text: string) {
-    console.log(`${colors.green}${text}${colors.reset}`)
-  }
-
-  static warning(text: string) {
-    console.log(`${colors.yellow}${text}${colors.reset}`)
-  }
-
-  static h1(text: string) {
-    console.log(`${colors.bold}${colors.blue}# ${text}${colors.reset}`)
-    console.log()
-  }
-
-  static h2(text: string) {
-    console.log(`${colors.bold}${colors.blue}## ${text}${colors.reset}`)
-    console.log()
-  }
-
-  static h3(text: string) {
-    console.log(`${colors.bold}${colors.blue}### ${text}${colors.reset}`)
-    console.log()
-  }
-}
-
-/** GitHub CLI wrapper class */
-class GhCli {
-  static checkAuth() {
-    return Util.execCommand('gh auth status', { silent: true })
-  }
-
-  static getRepo() {
-    return Util.execCommand(
-      "gh repo view --json nameWithOwner -q '.nameWithOwner'",
-      { silent: true, ignoreError: true },
-    )
-  }
-
-  static getWorkflowId(workflowName: string) {
-    return Util.execCommand(
-      `gh workflow list --json name,id --jq '.[] | select(.name | contains("${workflowName}")) | .id'`,
-      { silent: true },
-    )
-  }
-
-  static getRunStatus(repo: string, runId: number) {
-    return Util.execCommand(
-      `gh run view --repo "${repo}" "${runId}" --json status,conclusion --jq '.'`,
-      { silent: true },
-    )
-  }
-
-  static listRuns(
-    repo: string,
-    limit: number,
-    filter: string,
-    commitSha?: string,
-  ) {
-    const jqFilter =
-      filter === 'running'
-        ? '.[] | select(.status == "in_progress")'
-        : '.[] | select(.conclusion == "failure")'
-    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
-    return Util.execCommand(
-      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion --jq '${jqFilter}'`,
-      { silent: true },
-    )
-  }
-
-  static getFailedJobs(repo: string, runId: number) {
-    return Util.execCommand(
-      `gh run view --repo "${repo}" "${runId}" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | {name: .name, databaseId: .databaseId}'`,
-      { silent: true },
-    )
-  }
-
-  static getJobLogs(repo: string, jobId: number) {
-    return Util.execCommand(
-      `gh run view --repo "${repo}" --job "${jobId}" --log`,
-      { silent: true },
-    )
-  }
-
-  static getFailedRuns(repo: string, limit: number, commitSha: string): any[] {
-    const outputResult = GhCli.listRuns(repo, limit, 'failed', commitSha)
-    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
-  }
-
-  static getFailedJobsFromRun(repo: string, runId: number): any[] {
-    const outputResult = GhCli.getFailedJobs(repo, runId)
-    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
-  }
-
-  static getJobLogsFromRepo(repo: string, jobId: number): string | null {
-    const logsResult = GhCli.getJobLogs(repo, jobId)
-    return logsResult.ok ? logsResult.result : null
-  }
-}
-
-/** Git CLI wrapper class */
-class GitCli {
-  static getCurrentSha() {
-    return Util.execCommand('git rev-parse HEAD', { silent: true })
-  }
-
-  static getRemoteUrl() {
-    return Util.execCommand('git remote get-url origin', { silent: true })
-  }
-}
-
-/** Reusable utilities */
-class Util {
-  static sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
-  static parseJsonLines(output: string): any[] {
-    if (!output) return []
-
-    return output
-      .split('\n')
-      .filter((line) => line.trim())
-      .map((line) => JSON.parse(line))
-  }
-
-  static validateSha(sha: string): boolean {
-    if (!sha) return false
-    return /^[a-f0-9]{7,40}$/i.test(sha)
-  }
-
-  static execCommand(
-    command: string,
-    options: {
-      silent?: boolean
-      ignoreError?: boolean
-      execSyncOptions?: Parameters<typeof execSync>[1]
-    } = {},
-  ): ExecCommandResult {
-    try {
-      const result = execSync(command, {
-        encoding: 'utf-8',
-        stdio: options.silent ? 'pipe' : 'inherit',
-        ...options,
-      }).trim()
-
-      if (process.env.DEBUG) {
-        Output.log(
-          `> Running \`\`${command}\`\` => \`\`${JSON.stringify(result).substring(0, 50)}\`\``,
-        )
-      }
-
-      return { ok: true, result }
-    } catch (error: unknown) {
-      if (process.env.DEBUG) {
-        Output.log(`> Running \`\`${command}\`\` => error`)
-      }
-
-      if (options.ignoreError) {
-        return { ok: true, result: '' }
-      }
-      return { ok: false, code: ((error as any).status || 1) as number }
-    }
-  }
-}
-
 /** The main action */
 class ShowLogAction {
   static checkDependencies() {
@@ -435,6 +261,180 @@ class ShowLogAction {
 
     // Process failed runs
     await ShowLogAction.processFailedRuns(repo, failedRuns, shortSha)
+  }
+}
+
+/** GitHub CLI wrapper class */
+class GhCli {
+  static checkAuth() {
+    return Util.execCommand('gh auth status', { silent: true })
+  }
+
+  static getRepo() {
+    return Util.execCommand(
+      "gh repo view --json nameWithOwner -q '.nameWithOwner'",
+      { silent: true, ignoreError: true },
+    )
+  }
+
+  static getWorkflowId(workflowName: string) {
+    return Util.execCommand(
+      `gh workflow list --json name,id --jq '.[] | select(.name | contains("${workflowName}")) | .id'`,
+      { silent: true },
+    )
+  }
+
+  static getRunStatus(repo: string, runId: number) {
+    return Util.execCommand(
+      `gh run view --repo "${repo}" "${runId}" --json status,conclusion --jq '.'`,
+      { silent: true },
+    )
+  }
+
+  static listRuns(
+    repo: string,
+    limit: number,
+    filter: string,
+    commitSha?: string,
+  ) {
+    const jqFilter =
+      filter === 'running'
+        ? '.[] | select(.status == "in_progress")'
+        : '.[] | select(.conclusion == "failure")'
+    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
+    return Util.execCommand(
+      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion --jq '${jqFilter}'`,
+      { silent: true },
+    )
+  }
+
+  static getFailedJobs(repo: string, runId: number) {
+    return Util.execCommand(
+      `gh run view --repo "${repo}" "${runId}" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | {name: .name, databaseId: .databaseId}'`,
+      { silent: true },
+    )
+  }
+
+  static getJobLogs(repo: string, jobId: number) {
+    return Util.execCommand(
+      `gh run view --repo "${repo}" --job "${jobId}" --log`,
+      { silent: true },
+    )
+  }
+
+  static getFailedRuns(repo: string, limit: number, commitSha: string): any[] {
+    const outputResult = GhCli.listRuns(repo, limit, 'failed', commitSha)
+    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
+  }
+
+  static getFailedJobsFromRun(repo: string, runId: number): any[] {
+    const outputResult = GhCli.getFailedJobs(repo, runId)
+    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
+  }
+
+  static getJobLogsFromRepo(repo: string, jobId: number): string | null {
+    const logsResult = GhCli.getJobLogs(repo, jobId)
+    return logsResult.ok ? logsResult.result : null
+  }
+}
+
+/** Git CLI wrapper class */
+class GitCli {
+  static getCurrentSha() {
+    return Util.execCommand('git rev-parse HEAD', { silent: true })
+  }
+
+  static getRemoteUrl() {
+    return Util.execCommand('git remote get-url origin', { silent: true })
+  }
+}
+
+/** Output helper class */
+class Output {
+  static log(text: string = '') {
+    console.log(text)
+  }
+
+  static error(text: string) {
+    console.error(`${colors.red}Error: ${text}${colors.reset}`)
+  }
+
+  static success(text: string) {
+    console.log(`${colors.green}${text}${colors.reset}`)
+  }
+
+  static warning(text: string) {
+    console.log(`${colors.yellow}${text}${colors.reset}`)
+  }
+
+  static h1(text: string) {
+    console.log(`${colors.bold}${colors.blue}# ${text}${colors.reset}`)
+    console.log()
+  }
+
+  static h2(text: string) {
+    console.log(`${colors.bold}${colors.blue}## ${text}${colors.reset}`)
+    console.log()
+  }
+
+  static h3(text: string) {
+    console.log(`${colors.bold}${colors.blue}### ${text}${colors.reset}`)
+    console.log()
+  }
+}
+
+/** Reusable utilities */
+class Util {
+  static sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  static parseJsonLines(output: string): any[] {
+    if (!output) return []
+
+    return output
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line))
+  }
+
+  static validateSha(sha: string): boolean {
+    if (!sha) return false
+    return /^[a-f0-9]{7,40}$/i.test(sha)
+  }
+
+  static execCommand(
+    command: string,
+    options: {
+      silent?: boolean
+      ignoreError?: boolean
+      execSyncOptions?: Parameters<typeof execSync>[1]
+    } = {},
+  ): ExecCommandResult {
+    try {
+      const result = execSync(command, {
+        encoding: 'utf-8',
+        stdio: options.silent ? 'pipe' : 'inherit',
+        ...options,
+      }).trim()
+
+      if (process.env.DEBUG) {
+        Output.log(
+          `> Running \`\`${command}\`\` => \`\`${JSON.stringify(result).substring(0, 50)}\`\``,
+        )
+      }
+
+      return { ok: true, result }
+    } catch (error: unknown) {
+      if (process.env.DEBUG) {
+        Output.log(`> Running \`\`${command}\`\` => error`)
+      }
+
+      if (options.ignoreError) {
+        return { ok: true, result: '' }
+      }
+      return { ok: false, code: ((error as any).status || 1) as number }
+    }
   }
 }
 
