@@ -188,7 +188,12 @@ class ShowLogAction {
     // Process running runs
     if (allRuns.filter((run) => run.status === 'in_progress').length > 0) {
       await ShowLogAction.waitForRunningRuns(repo, LIMIT, commitSha)
+
+      // Refetch all runs after waiting
       allRuns = GhCli.getRuns(repo, LIMIT, commitSha)
+
+      Output.log()
+      ShowLogAction.displayRunSummary(allRuns)
     }
 
     // Get failed runs
