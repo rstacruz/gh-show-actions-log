@@ -212,6 +212,13 @@ class ShowLogAction {
     }
   }
 
+  static showUsageAndExit(error: string): never {
+    Output.error(error)
+    Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
+    Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
+    process.exit(1)
+  }
+
   static getRepository(): ExecCommandResult {
     const repoResult = GhCli.getRepo()
     if (repoResult.ok) return repoResult
@@ -299,7 +306,12 @@ class ShowLogAction {
   static async processFailedRuns(
     repo: string,
     failedRuns: any[],
+    shortSha?: string,
   ): Promise<void> {
+    if (shortSha) {
+      Output.h1(`Latest GitHub Actions run for ${repo} @ ${shortSha}`)
+    }
+
     for (const run of failedRuns) {
       Output.h2(
         `Failed run for workflow '${run.workflowName}' (run ID: ${run.databaseId})`,
@@ -346,12 +358,9 @@ class ShowLogAction {
       if (repoResult.ok) {
         repo = repoResult.result
       } else {
-        Output.error(
-          'Could not determine repository. Please provide it as first argument.',
+        ShowLogAction.showUsageAndExit(
+          'Could not determine repository. Please provide it.',
         )
-        Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
-        Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
-        process.exit(1)
       }
     }
 
@@ -361,12 +370,9 @@ class ShowLogAction {
       if (shaResult.ok) {
         commitSha = shaResult.result
       } else {
-        Output.error(
-          'Could not determine current commit SHA. Please provide it as second argument.',
+        ShowLogAction.showUsageAndExit(
+          'Could not determine current commit SHA. Please provide it.',
         )
-        Output.log(`Usage: ${BIN} [repo] [commit-sha] [workflow-name]`)
-        Output.log(`Example: ${BIN} owner/repo abc1234 ci`)
-        process.exit(1)
       }
     }
 
@@ -381,9 +387,6 @@ class ShowLogAction {
     // Check dependencies
     ShowLogAction.checkDependencies()
 
-    const shortSha = commitSha.substring(0, 7)
-    Output.h1(`Latest GitHub Actions run for ${repo} (${shortSha})`)
-
     // Get workflow ID if name is provided
     if (workflowName) {
       const workflowResult = GhCli.getWorkflowId(workflowName)
@@ -395,6 +398,8 @@ class ShowLogAction {
         process.exit(1)
       }
     }
+
+    const shortSha = commitSha.substring(0, 7)
 
     // Process running runs
     const runningFailures = await ShowLogAction.processRunningRuns(
@@ -412,14 +417,14 @@ class ShowLogAction {
     if (failedRuns.length === 0) {
       if (runningFailures.length === 0) {
         Output.success(
-          `Success! No failed or running workflow runs for commit '${shortSha}'.`,
+          `Success! No failed or running workflow runs for ${repo} @ ${shortSha}.`,
         )
       }
       process.exit(0)
     }
 
     // Process failed runs
-    await ShowLogAction.processFailedRuns(repo, failedRuns)
+    await ShowLogAction.processFailedRuns(repo, failedRuns, shortSha)
   }
 }
 
