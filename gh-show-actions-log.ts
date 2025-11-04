@@ -15,8 +15,8 @@ type ExecCommandResult = ExecCommandSuccess | ExecCommandFailure
 
 // Constants
 const LIMIT = 20
-const TIMEOUT = 1200 // 20 minutes in seconds
-const INTERVAL = 10 // 10 seconds
+const TIMEOUT_SECS = 1200
+const INTERVAL_SECS = 10
 
 // Status constants
 const ACTIVE_STATUSES = ['in_progress', 'queued'] as const
@@ -59,26 +59,12 @@ class ShowLogAction {
     process.exit(1)
   }
 
-  static getRepository(): ExecCommandResult {
-    const repoResult = GhCli.getRepo()
-    if (repoResult.ok) return repoResult
-
-    // Try getting from git remote
-    const remoteUrlResult = GitCli.getRemoteUrl()
-    if (remoteUrlResult.ok) {
-      const match = remoteUrlResult.result.match(/github\.com[:/](.*)\.git/)
-      return match?.[1] ? { ok: true, result: match[1] } : { ok: false, code: 1 }
-    }
-
-    return { ok: false, code: 1 }
-  }
-
   static async waitForRunningRuns(repo: string, limit: number, commitSha: string): Promise<void> {
     let elapsed = 0
 
     Output.info('Waiting for running workflows to complete...')
 
-    while (elapsed < TIMEOUT) {
+    while (elapsed < TIMEOUT_SECS) {
       const runningRuns = GhCli.getRuns(repo, limit, commitSha).filter((run) =>
         ACTIVE_STATUSES.includes(run.status as any),
       )
@@ -87,11 +73,11 @@ class ShowLogAction {
         break
       }
 
-      await Util.sleep(INTERVAL * 1000)
-      elapsed += INTERVAL
+      await Util.sleep(INTERVAL_SECS * 1000)
+      elapsed += INTERVAL_SECS
     }
 
-    if (elapsed >= TIMEOUT) {
+    if (elapsed >= TIMEOUT_SECS) {
       Output.warning('Timeout reached. Workflow may still be running.')
     }
   }
@@ -137,7 +123,7 @@ class ShowLogAction {
 
     // Get repository if not provided
     if (!repo) {
-      const repoResult = ShowLogAction.getRepository()
+      const repoResult = GhCli.getRepo()
       if (!repoResult.ok) {
         ShowLogAction.showUsageAndExit('Could not determine repository.')
       }
@@ -202,7 +188,7 @@ class ShowLogAction {
     const failedRuns = allRuns.filter((run) => run.conclusion === 'failure')
 
     if (failedRuns.length === 0) {
-      Output.success(`All ${allRuns.length} of ${allRuns.length} runs are successful ✓`)
+      Output.success(`${allRuns.length} ${allRuns.length === 1 ? 'run' : 'runs'} successful ✓`)
       process.exit(0)
     }
 
