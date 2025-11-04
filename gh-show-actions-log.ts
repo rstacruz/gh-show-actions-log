@@ -85,20 +85,14 @@ class ShowLogAction {
     let elapsed = 0
 
     while (elapsed < TIMEOUT) {
-      const outputResult = GhCli.listRuns(repo, limit, 'running', commitSha)
-      if (outputResult.ok) {
-        const runningRuns = Util.parseJsonLines(outputResult.result)
+      const runningRuns = GhCli.listRuns(repo, limit, 'running', commitSha)
 
-        if (runningRuns.length === 0) {
-          break
-        }
-
-        await Util.sleep(INTERVAL * 1000)
-        elapsed += INTERVAL
-      } else {
-        Output.error('Failed to check running runs')
+      if (runningRuns.length === 0) {
         break
       }
+
+      await Util.sleep(INTERVAL * 1000)
+      elapsed += INTERVAL
     }
 
     if (elapsed >= TIMEOUT) {
@@ -227,7 +221,7 @@ class ShowLogAction {
     await ShowLogAction.processRunningRuns(repo, LIMIT, commitSha)
 
     // Fetch all runs for the commit and display summary
-    const allRuns = GhCli.getAllRuns(repo, LIMIT, commitSha)
+    const allRuns = GhCli.listAllRuns(repo, LIMIT, commitSha)
     ShowLogAction.displayRunSummary(allRuns)
 
     // Get failed runs
@@ -262,30 +256,30 @@ class GhCli {
     )
   }
 
+  static listAllRuns(repo: string, limit: number, commitSha?: string): any[] {
+    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
+    const outputResult = Util.execCommand(
+      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion,startedAt,updatedAt,event --jq '.[]'`,
+      { silent: true },
+    )
+    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
+  }
+
   static listRuns(
     repo: string,
     limit: number,
     filter: string,
     commitSha?: string,
-  ) {
-    const jqFilter =
-      filter === 'running'
-        ? '.[] | select(.status == "in_progress")'
-        : '.[] | select(.conclusion == "failure")'
-    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
-    return Util.execCommand(
-      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion --jq '${jqFilter}'`,
-      { silent: true },
-    )
-  }
+  ): any[] {
+    const allRuns = GhCli.listAllRuns(repo, limit, commitSha)
 
-  static getAllRuns(repo: string, limit: number, commitSha: string): any[] {
-    const commitFlag = commitSha ? `--commit=${commitSha}` : ''
-    const outputResult = Util.execCommand(
-      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,workflowName,event,status,conclusion,startedAt,updatedAt --jq '.[]'`,
-      { silent: true },
-    )
-    return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
+    if (filter === 'running') {
+      return allRuns.filter((run) => run.status === 'in_progress')
+    } else if (filter === 'failure') {
+      return allRuns.filter((run) => run.conclusion === 'failure')
+    }
+
+    return []
   }
 
   static getFailedJobsFromRun(repo: string, runId: number): any[] {
