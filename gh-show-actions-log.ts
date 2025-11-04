@@ -185,10 +185,6 @@ class ShowLogAction {
 
 /** GitHub CLI wrapper class */
 class GhCli {
-  static checkAuth() {
-    return Util.execCommand('gh auth status')
-  }
-
   static getRepo() {
     return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'")
   }
