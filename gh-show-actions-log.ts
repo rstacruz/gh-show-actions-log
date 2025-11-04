@@ -146,15 +146,10 @@ function checkDependencies() {
   }
 }
 
-function getCurrentBranch(): ExecCommandResult {
-  return GitCli.getCurrentBranch();
-}
 
 function getRepository(): ExecCommandResult {
   const repoResult = GhCli.getRepo();
-  if (repoResult.ok) {
-    return repoResult;
-  }
+  if (repoResult.ok) return repoResult;
 
   // Try getting from git remote
   const remoteUrlResult = GitCli.getRemoteUrl();
@@ -317,7 +312,7 @@ async function main(): Promise<void> {
 
   // Get branch if not provided
   if (!branch) {
-    const branchResult = getCurrentBranch();
+    const branchResult = GitCli.getCurrentBranch();
     if (branchResult.ok) {
       branch = branchResult.result;
     } else {
