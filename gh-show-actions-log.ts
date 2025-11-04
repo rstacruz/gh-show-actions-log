@@ -186,20 +186,17 @@ class ShowLogAction {
 /** GitHub CLI wrapper class */
 class GhCli {
   static checkAuth() {
-    return Util.execCommand('gh auth status', { silent: true })
+    return Util.execCommand('gh auth status')
   }
 
   static getRepo() {
-    return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'", {
-      silent: true,
-    })
+    return Util.execCommand("gh repo view --json nameWithOwner -q '.nameWithOwner'")
   }
 
   static getRuns(repo: string, limit: number, commitSha?: string): any[] {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     const outputResult = Util.execCommand(
       `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,headBranch,workflowName,createdAt,status,conclusion,startedAt,updatedAt,event --jq '.[]'`,
-      { silent: true },
     )
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
@@ -207,15 +204,12 @@ class GhCli {
   static getFailedJobsByRun(repo: string, runId: number): any[] {
     const outputResult = Util.execCommand(
       `gh run view --repo "${repo}" "${runId}" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | {name: .name, databaseId: .databaseId}'`,
-      { silent: true },
     )
     return outputResult.ok ? Util.parseJsonLines(outputResult.result) : []
   }
 
   static getJobLogs(repo: string, jobId: number): string | null {
-    const logsResult = Util.execCommand(`gh run view --repo "${repo}" --job "${jobId}" --log`, {
-      silent: true,
-    })
+    const logsResult = Util.execCommand(`gh run view --repo "${repo}" --job "${jobId}" --log`)
     return logsResult.ok ? logsResult.result : null
   }
 }
@@ -223,11 +217,11 @@ class GhCli {
 /** Git CLI wrapper class */
 class GitCli {
   static getCurrentSha() {
-    return Util.execCommand('git rev-parse HEAD', { silent: true })
+    return Util.execCommand('git rev-parse HEAD')
   }
 
   static getRemoteUrl() {
-    return Util.execCommand('git remote get-url origin', { silent: true })
+    return Util.execCommand('git remote get-url origin')
   }
 }
 
@@ -320,25 +314,24 @@ class Util {
 
   static execCommand(
     command: string,
-    options: {
-      silent?: boolean
-      execSyncOptions?: Parameters<typeof execSync>[1]
-    } = {},
+    execSyncOptions: Parameters<typeof execSync>[1] = {},
   ): ExecCommandResult {
     try {
       const result = execSync(command, {
         encoding: 'utf-8',
-        stdio: options.silent ? 'pipe' : 'inherit',
-        ...options,
-      }).trim()
+        stdio: 'pipe',
+        ...execSyncOptions,
+      }) as string
+
+      const trimmedResult = result.trim()
 
       if (process.env.DEBUG) {
         Output.log(
-          `> Running \`\`${command}\`\` => \`\`${JSON.stringify(result).substring(0, 50)}\`\``,
+          `> Running \`\`${command}\`\` => \`\`${JSON.stringify(trimmedResult).substring(0, 50)}\`\``,
         )
       }
 
-      return { ok: true, result }
+      return { ok: true, result: trimmedResult }
     } catch (error: unknown) {
       if (process.env.DEBUG) {
         Output.log(`> Running \`\`${command}\`\` => error`)
