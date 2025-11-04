@@ -125,10 +125,7 @@ class ShowLogAction {
       const runs = Util.parseJsonLines(outputResult.result)
 
       for (const run of runs) {
-        Output.h2(
-          `Running workflow '${run.workflowName}' (run ID: ${run.databaseId})`,
-        )
-        Output.log('This run is in progress. Waiting for completion...')
+        Output.log(`Waiting for ${run.workflowName} to finish...`)
 
         const completedRun = await ShowLogAction.waitForWorkflowCompletion(
           repo,
@@ -154,7 +151,7 @@ class ShowLogAction {
     Output.h2(`Workflow runs for ${repo} @ ${shortSha}:`)
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
-      const duration = Util.formatDuration(run.startedAt, run.completedAt)
+      const duration = Util.formatDuration(run.startedAt, run.updatedAt)
       Output.log(
         `- ${status}: ${run.workflowName} / ${run.event} (${duration})`,
       )
@@ -164,12 +161,7 @@ class ShowLogAction {
   static async processFailedRuns(
     repo: string,
     failedRuns: any[],
-    shortSha?: string,
   ): Promise<void> {
-    if (shortSha) {
-      Output.h1(`Latest GitHub Actions run for ${repo} @ ${shortSha}`)
-    }
-
     for (const run of failedRuns) {
       Output.h2(
         `Failed run for workflow '${run.workflowName}' (run ID: ${run.databaseId})`,
@@ -266,12 +258,23 @@ class ShowLogAction {
 
     const shortSha = commitSha.substring(0, 7)
 
+    Output.h1(`GitHub Actions logs for ${repo} @ ${shortSha}`)
+
     // Process running runs
     const runningFailures = await ShowLogAction.processRunningRuns(
       repo,
       LIMIT,
       commitSha,
     )
+
+    // Fetch all runs for the commit and display summary
+    const allRunsResult = GhCli.getAllRuns(repo, LIMIT, commitSha)
+    if (!allRunsResult.ok) {
+      Output.error(`Failed to get workflow runs.`)
+      process.exit(1)
+    }
+    const allRuns = Util.parseJsonLines(allRunsResult.result)
+    ShowLogAction.displayRunSummary(allRuns, repo, shortSha)
 
     // Get failed runs
     const failedRuns =
@@ -281,16 +284,6 @@ class ShowLogAction {
 
     if (failedRuns.length === 0) {
       if (runningFailures.length === 0) {
-        // Fetch all runs for the commit and display summary
-        const allRunsResult = GhCli.getAllRuns(repo, LIMIT, commitSha)
-        if (allRunsResult.ok) {
-          const allRuns = Util.parseJsonLines(allRunsResult.result)
-          ShowLogAction.displayRunSummary(allRuns, repo, shortSha)
-        } else {
-          Output.success(
-            `Success! No failed or running workflow runs for ${repo} @ ${shortSha}.`,
-          )
-        }
       }
       process.exit(0)
     }
@@ -347,7 +340,7 @@ class GhCli {
   static getAllRuns(repo: string, limit: number, commitSha: string) {
     const commitFlag = commitSha ? `--commit=${commitSha}` : ''
     return Util.execCommand(
-      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,workflowName,event,status,conclusion,startedAt,completedAt --jq '.[]'`,
+      `gh run list --repo "${repo}" ${commitFlag} --limit "${limit}" --json databaseId,workflowName,event,status,conclusion,startedAt,updatedAt --jq '.[]'`,
       { silent: true },
     )
   }
@@ -468,14 +461,14 @@ class Util {
 
   static formatDuration(
     startedAt: string | null,
-    completedAt: string | null,
+    updatedAt: string | null,
   ): string {
-    if (!startedAt || !completedAt) {
+    if (!startedAt || !updatedAt) {
       return 'N/A'
     }
 
     const start = new Date(startedAt)
-    const end = new Date(completedAt)
+    const end = new Date(updatedAt)
     const diffMs = end.getTime() - start.getTime()
     const seconds = Math.round(diffMs / 1000)
 
