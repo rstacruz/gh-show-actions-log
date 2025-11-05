@@ -10,10 +10,10 @@ const BIN = basename(process.argv[1] ?? 'gh-show-actions-log')
  */
 
 // Constants
-const TIMEOUT_SECS = 1200
+const TIMEOUT_SECS = 20 * 60
 const INTERVAL_SECS = 10
 const WORKFLOW_WAIT_SECS = 10
-const SUMMARY_DISPLAY_FREQUENCY = 3
+const SUMMARY_DISPLAY_FREQUENCY = 6
 
 /** @type {Array<'in_progress' | 'queued'>} */
 const ACTIVE_STATUSES = ['in_progress', 'queued']
@@ -71,6 +71,7 @@ class ShowLogAction {
 
     if (elapsed >= TIMEOUT_SECS) {
       Output.warning('Timeout reached. Workflow may still be running.')
+      process.exit(2)
     }
   }
 
@@ -81,15 +82,22 @@ class ShowLogAction {
     if (runs.length === 0) return
     Output.log()
 
-    const lastUpdatedIso = runs.map(run => run.updatedAt).sort()[0]
-    const lastUpdatedDate = new Date(Date.parse(lastUpdatedIso))
+    const hasPending = runs.filter((run) => ACTIVE_STATUSES.includes(run.status)).length > 0
 
-    Output.log(`As of ${lastUpdatedDate.toLocaleString()} (${Util.formatDuration(lastUpdatedDate, new Date())} ago):`)
+    if (hasPending) {
+      // As of right now
+      Output.log(`As of ${(new Date()).toLocaleString()}:`)
+    } else {
+      const lastUpdatedIso = runs.map(run => run.updatedAt).sort().reverse()[0]
+      const lastUpdatedDate = new Date(Date.parse(lastUpdatedIso))
+      Output.log(`As of ${lastUpdatedDate.toLocaleString()} (${Util.formatDuration(lastUpdatedDate, new Date())} ago):`)
+    }
     Output.log()
 
     for (const run of runs) {
       const status = Util.formatStatus(run.status, run.conclusion)
-      const duration = Util.formatDuration(run.startedAt, run.updatedAt)
+      const now = run.status === "in_progress" ? new Date() : run.updatedAt
+      const duration = Util.formatDuration(run.startedAt, now)
       Output.log(`- ${status}: ${run.workflowName} (${run.event}) - ${duration}`)
     }
   }

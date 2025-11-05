@@ -30,6 +30,18 @@ gh-show-actions-log owner/repo abcd1234
   Run `gh-show-actions-log` to view errors and address them if any
   ```
 
+- Add this to your global AGENTS.md for your favourite AI coding assistant. Think of it as if you just added a GitHub Actions MCP.
+
+  ```
+  You have access to the `gh-show-actions-log` CLI tool. It shows test status for the current commit in GitHub Actions, and show logs for failures. If a run is pending, it waits until it completes. Use this to query status or show logs from GitHub Actions CI.
+  ```
+
+- Mark a draft PR as ready for review as soon as it passes:
+
+  ```sh
+  gh-show-actions-log && gh pr ready
+  ```
+
 - Get alerted when CI fails or succeeds:
 
   ```sh
@@ -39,5 +51,5 @@ gh-show-actions-log owner/repo abcd1234
 - Show logs after pushing code:
 
   ```sh
-  git push && gh-show-actions-log 
+  git push && gh-show-actions-log
   ```
