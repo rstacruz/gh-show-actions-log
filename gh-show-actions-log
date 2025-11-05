@@ -13,6 +13,7 @@ const BIN = basename(process.argv[1] ?? 'gh-show-actions-log')
 const TIMEOUT_SECS = 1200
 const INTERVAL_SECS = 10
 const WORKFLOW_WAIT_SECS = 10
+const SUMMARY_DISPLAY_FREQUENCY = 3
 
 /** @type {Array<'in_progress' | 'queued'>} */
 const ACTIVE_STATUSES = ['in_progress', 'queued']
@@ -48,15 +49,19 @@ class ShowLogAction {
    */
   static async waitForRunningRuns(repo, commitSha) {
     let elapsed = 0
+    let steps = 0
 
     Output.info('Waiting for running workflows to complete...')
 
     while (elapsed < TIMEOUT_SECS) {
-      const runningRuns = GhCli.getRuns(repo, commitSha).filter((run) =>
-        ACTIVE_STATUSES.includes(run.status),
-      )
+      steps = (steps + 1) % SUMMARY_DISPLAY_FREQUENCY
+      const allRuns = GhCli.getRuns(repo, commitSha)
+      if (steps === 0) ShowLogAction.displayRunSummary(allRuns)
 
-      if (runningRuns.length === 0) {
+      const hasFailure = allRuns.filter(run => run.conclusion === 'failure').length > 0
+      const hasPending = allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status)).length > 0
+
+      if (hasFailure || !hasPending) {
         break
       }
 
@@ -74,6 +79,12 @@ class ShowLogAction {
    */
   static displayRunSummary(runs) {
     if (runs.length === 0) return
+    Output.log()
+
+    const lastUpdatedIso = runs.map(run => run.updatedAt).sort()[0]
+    const lastUpdatedDate = new Date(Date.parse(lastUpdatedIso))
+
+    Output.log(`As of ${lastUpdatedDate.toLocaleString()} (${Util.formatDuration(lastUpdatedDate, new Date())} ago):`)
     Output.log()
 
     for (const run of runs) {
@@ -105,6 +116,10 @@ class ShowLogAction {
           Output.warning(`Could not fetch logs for job ${job.databaseId}`)
         }
         Output.log('`````')
+
+        const url = `https://github.com/${repo}/actions/runs/${run.databaseId}/job/${job.databaseId}`
+        Output.log()
+        Output.log(`> Log URL: ${url}`)
       }
     }
   }
@@ -166,8 +181,11 @@ class ShowLogAction {
       process.exit(0)
     }
 
+    const hasFailure = allRuns.filter(run => run.conclusion === 'failure').length > 0
+    const hasPending = allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status)).length > 0
+
     // Process running runs
-    if (allRuns.filter((run) => ACTIVE_STATUSES.includes(run.status)).length > 0) {
+    if (!hasFailure && hasPending) {
       await ShowLogAction.waitForRunningRuns(repo, commitSha)
 
       // Refetch all runs after waiting
@@ -355,8 +373,8 @@ class Util {
   }
 
   /**
-   * @param {string|null} startedAt
-   * @param {string|null} updatedAt
+   * @param {Date|string|null} startedAt
+   * @param {Date|string|null} updatedAt
    */
   static formatDuration(startedAt, updatedAt) {
     if (!startedAt || !updatedAt) return 'N/A'
@@ -365,8 +383,26 @@ class Util {
     const end = new Date(updatedAt)
     const diffMs = end.getTime() - start.getTime()
     const seconds = Math.round(diffMs / 1000)
-
-    return `${seconds}s`
+    
+    if (seconds < 60) {
+      return `${seconds}s`
+    }
+    
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) {
+      const remainingSeconds = seconds % 60
+      return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+    }
+    
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) {
+      const remainingMinutes = minutes % 60
+      return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
+    }
+    
+    const days = Math.floor(hours / 24)
+    const remainingHours = hours % 24
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`
   }
 
   /**
